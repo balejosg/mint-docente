@@ -1,0 +1,55 @@
+#!/bin/bash
+# Asistente de primer arranque: conecta una cuenta de IA a OpenCode.
+# También se usa desde el menú: «Cambiar cuenta de IA».
+TITULO="Mint Docente"
+ESTADO="$HOME/.config/mint-docente"
+mkdir -p "$ESTADO"
+AVISO=""
+pgrep -f /opt/OpenCode/ai.opencode >/dev/null && \
+  AVISO="\n\nCierra OpenCode y vuelve a abrirlo para usar la nueva cuenta."
+
+conectar() { # id-proveedor nombre-visible
+  local id="$1" nombre="$2"
+  xfce4-terminal --title="Conectar $nombre" --hide-menubar --geometry=100x30 \
+    -x /usr/local/bin/mint-docente-conectar "$id" "$nombre"
+  if opencode auth list 2>/dev/null | grep -qi -- "$id"; then
+    zenity --info --title="$TITULO" --width=420 \
+      --text="<b>¡Listo!</b>\n\nTu cuenta de $nombre está conectada.$AVISO"
+    return 0
+  fi
+  zenity --question --title="$TITULO" --width=420 \
+    --ok-label="Reintentar" --cancel-label="Más tarde" \
+    --text="No se ha podido confirmar la conexión con $nombre.\n\n¿Quieres intentarlo de nuevo?" \
+    && conectar "$id" "$nombre"
+}
+
+zenity --info --title="$TITULO" --width=480 --ok-label="Empezar" --text=\
+"<big><b>Te damos la bienvenida a Mint Docente</b></big>
+
+Vas a trabajar con <b>OpenCode</b>, un asistente de IA que te ayuda a preparar temarios, actividades, rúbricas, exámenes y documentos en Word y PDF.
+
+Antes de empezar, hay que conectarlo a tu cuenta de IA. Solo se hace una vez."
+
+OPCION=$(zenity --list --radiolist --title="$TITULO" --width=520 --height=300 \
+  --text="¿Qué cuenta quieres usar?" \
+  --column="" --column="id" --column="Cuenta" --hide-column=2 --print-column=2 \
+  TRUE  github-copilot "GitHub Copilot (recomendado para docentes)" \
+  FALSE otro           "Otro proveedor de pago (Anthropic, OpenAI…)" \
+  FALSE omitir         "Ahora no — lo haré más tarde") || OPCION=omitir
+
+case "$OPCION" in
+  github-copilot)
+    conectar github-copilot "GitHub Copilot" ;;
+  otro)
+    P=$(zenity --list --title="$TITULO" --width=420 --height=300 \
+      --text="Elige el proveedor:" --column="id" --column="Proveedor" \
+      --hide-column=1 --print-column=1 \
+      anthropic "Anthropic (Claude)" openai "OpenAI (ChatGPT)" \
+      openrouter "OpenRouter" opencode "OpenCode Go / Zen")
+    [ -n "$P" ] && conectar "$P" "$(echo "$P" | sed 's/^./\U&/')" ;;
+  *)
+    zenity --info --title="$TITULO" --width=420 --text=\
+"Sin problema. Cuando quieras, abre el menú y busca <b>«Cambiar cuenta de IA»</b>." ;;
+esac
+
+touch "$ESTADO/asistente-hecho"

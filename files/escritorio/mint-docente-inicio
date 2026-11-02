@@ -1,0 +1,7 @@
+#!/bin/bash
+# Autoarranque de la sesión: asistente la primera vez y después OpenCode.
+HECHO="$HOME/.config/mint-docente/asistente-hecho"
+if [ ! -e "$HECHO" ]; then
+  /usr/local/bin/mint-docente-asistente
+fi
+exec /usr/local/bin/opencode-docente

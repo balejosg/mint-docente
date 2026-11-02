@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenCode
+GenericName=Asistente docente con IA
+Comment=Prepara temarios, actividades y documentos con IA
+Exec=/usr/local/bin/opencode-docente
+Icon=ai.opencode
+Terminal=false
+Categories=Office;Education;
+StartupWMClass=ai.opencode.desktop

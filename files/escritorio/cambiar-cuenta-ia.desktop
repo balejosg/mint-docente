@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cambiar cuenta de IA
+Comment=Conectar OpenCode a GitHub Copilot u otro proveedor
+Exec=/usr/local/bin/mint-docente-asistente
+Icon=preferences-desktop-user-password
+Terminal=false
+Categories=Office;Education;Settings;

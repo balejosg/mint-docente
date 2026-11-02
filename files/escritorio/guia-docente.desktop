@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Guía rápida
+Comment=Cómo usar Mint Docente
+Exec=xdg-open /usr/share/mint-docente/GUIA-DOCENTE.pdf
+Icon=help-browser
+Terminal=false
+Categories=Office;Education;

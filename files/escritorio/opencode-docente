@@ -1,0 +1,7 @@
+#!/bin/bash
+# Lanza OpenCode Desktop en la carpeta de trabajo del docente, con las
+# herramientas de documentos (entorno Python) en el PATH del agente.
+export PATH="/opt/docente-py/bin:$PATH"
+mkdir -p "$HOME/Aula"
+cd "$HOME/Aula" || exit 1
+exec /opt/OpenCode/ai.opencode "$@"

@@ -1,0 +1,28 @@
+// Configuración gestionada de Mint Docente (/etc/opencode/opencode.jsonc).
+// No contiene credenciales: la cuenta de IA se conecta en el primer arranque.
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Estabilidad en el aula: la versión de OpenCode la fija la imagen.
+  "update": "disable",
+
+  // Instrucciones y skills propias del docente (fuera de la carpeta de trabajo).
+  "instructions": ["/usr/share/mint-docente/AGENTS.md"],
+  "skills": ["/usr/share/mint-docente/skills"],
+
+  // La última regla que coincide gana.
+  "permissions": [
+    // Fuera de la carpeta de trabajo: preguntar…
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    // …salvo en las zonas de intercambio, plantillas y temporales.
+    { "action": "external_directory", "resource": "~/Intercambio/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/media/sf_Intercambio/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/usr/share/mint-docente/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/*", "effect": "allow" },
+
+    // Órdenes delicadas: borrar pide confirmación; sudo, nunca.
+    { "action": "shell", "resource": "rm *", "effect": "ask" },
+    { "action": "shell", "resource": "sudo *", "effect": "deny" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" }
+  ]
+}
