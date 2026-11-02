@@ -1,6 +1,6 @@
 #!/bin/bash
 # Limpieza final: autologin, sin restos del build, sin credenciales, disco compacto.
-. /tmp/mint-docente/lib.sh
+. /var/tmp/mint-docente/lib.sh || exit 1
 
 log "Inicio de sesión automático como docente"
 install -D -m644 /dev/stdin /etc/lightdm/lightdm.conf.d/90-mint-docente.conf <<EOF
@@ -21,7 +21,7 @@ rm -rf "$DOCENTE_HOME/.local/share/opencode" "$DOCENTE_HOME/.local/state/opencod
 log "Restos de paquetes, registros e historial"
 apt_get autoremove --purge
 apt-get clean
-rm -rf /tmp/mint-docente /var/lib/apt/lists/* /root/.cache "$DOCENTE_HOME/.cache/pip"
+rm -rf /var/tmp/mint-docente /var/lib/apt/lists/* /root/.cache "$DOCENTE_HOME/.cache/pip"
 rm -f /root/.bash_history "$DOCENTE_HOME/.bash_history"
 journalctl --rotate && journalctl --vacuum-time=1s || true
 find /var/log -type f -name '*.gz' -delete

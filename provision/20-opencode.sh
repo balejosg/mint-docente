@@ -1,6 +1,6 @@
 #!/bin/bash
 # OpenCode Desktop v2 (versión fijada), configuración del sistema, instrucciones y skills.
-. /tmp/mint-docente/lib.sh
+. /var/tmp/mint-docente/lib.sh || exit 1
 
 OPENCODE_VERSION=2.2.5
 OPENCODE_DEB_SHA256=c827e714220de744c829fdea55540ed814b1372061e7a905fde0978f9f819de8

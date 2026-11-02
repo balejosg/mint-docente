@@ -1,6 +1,6 @@
 #!/bin/bash
 # Escritorio llave en mano: carpeta de trabajo, lanzadores, autoarranque y asistente.
-. /tmp/mint-docente/lib.sh
+. /var/tmp/mint-docente/lib.sh || exit 1
 E="$FILES/escritorio"
 
 log "Programas del escritorio"

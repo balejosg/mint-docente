@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sistema base: Guest Additions, actualización, idioma español, escritorio sin bloqueos.
-. /tmp/mint-docente/lib.sh
+. /var/tmp/mint-docente/lib.sh || exit 1
 
 log "Desactivar el autologin mientras dura el build (se reactiva en 90-limpieza)"
 sed -i -E 's/^(autologin-user|autologin-user-timeout)=.*/#&/' /etc/lightdm/lightdm.conf 2>/dev/null || true
@@ -36,6 +36,13 @@ apt_get purge xfce4-screensaver light-locker 2>/dev/null || true
 log "Sin ventana de bienvenida de Mint"
 como_docente mkdir -p "$DOCENTE_HOME/.linuxmint/mintwelcome"
 como_docente touch "$DOCENTE_HOME/.linuxmint/mintwelcome/norun.flag"
+
+log "Sin pantalla de bienvenida del Gestor de actualizaciones"
+if grep -qs 'name="show-welcome-page"' /usr/share/glib-2.0/schemas/com.linuxmint.updates.gschema.xml; then
+  printf '[com.linuxmint.updates]\nshow-welcome-page=false\n' \
+    > /usr/share/glib-2.0/schemas/90_mint-docente.gschema.override
+  glib-compile-schemas /usr/share/glib-2.0/schemas
+fi
 
 log "Reinicio para cargar kernel y Guest Additions"
 (sleep 3; systemctl reboot) &

@@ -2,6 +2,7 @@
 # Construye salida/MintDocente-AAAAMMDD.ova de principio a fin.
 #   ./build.sh            (sin ventana)
 #   VER=1 ./build.sh      (mostrando la VM mientras se instala)
+#   DEPURAR=1 ./build.sh  (si falla, deja la VM encendida para inspeccionarla)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -26,7 +27,7 @@ rm -rf salida/tmp
 
 cd packer
 packer init .
-packer build -force \
+packer build -force -on-error="$([ "${DEPURAR:-0}" = 1 ] && echo abort || echo cleanup)" \
   -var "iso_path=../$ISO" -var "iso_checksum=sha256:$ISO_SHA256" \
   -var "vm_name=$NOMBRE" -var "output_dir=../salida/tmp" \
   -var "headless=$([ "${VER:-0}" = 1 ] && echo false || echo true)" \

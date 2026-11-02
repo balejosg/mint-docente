@@ -106,17 +106,17 @@ build {
   sources = ["source.virtualbox-iso.mint"]
 
   provisioner "shell" {
-    inline = ["rm -rf /tmp/mint-docente && mkdir -p /tmp/mint-docente"]
+    inline = ["rm -rf /var/tmp/mint-docente && mkdir -p /var/tmp/mint-docente"]
   }
 
   provisioner "file" {
     source      = "../files/"
-    destination = "/tmp/mint-docente"
+    destination = "/var/tmp/mint-docente"
   }
 
   provisioner "file" {
     source      = "../test/"
-    destination = "/tmp/mint-docente/test"
+    destination = "/var/tmp/mint-docente/test"
   }
 
   provisioner "shell" {
@@ -140,7 +140,7 @@ build {
 
   provisioner "shell" {
     execute_command = "echo '${local.pass}' | sudo -S -E bash '{{ .Path }}'"
-    inline          = ["bash /tmp/mint-docente/test/verificar.sh"]
+    inline          = ["bash /var/tmp/mint-docente/test/verificar.sh"]
   }
 
   provisioner "shell" {

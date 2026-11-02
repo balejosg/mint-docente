@@ -1,12 +1,12 @@
 # Utilidades comunes para los scripts de aprovisionamiento.
-# Se incluye con: . "$(dirname "$0")/lib.sh"  (o desde /tmp/mint-docente/lib.sh)
+# Se incluye con: . "$(dirname "$0")/lib.sh"  (o desde /var/tmp/mint-docente/lib.sh)
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
 DOCENTE_USER=docente
 DOCENTE_HOME=/home/$DOCENTE_USER
-FILES=/tmp/mint-docente
+FILES=/var/tmp/mint-docente
 SHARE=/usr/share/mint-docente
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }

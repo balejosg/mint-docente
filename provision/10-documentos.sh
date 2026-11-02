@@ -1,6 +1,6 @@
 #!/bin/bash
 # Herramientas de documentos para el agente: Office, PDF, OCR, fórmulas y Python.
-. /tmp/mint-docente/lib.sh
+. /var/tmp/mint-docente/lib.sh || exit 1
 
 TYPST_VERSION=v0.15.1
 TYPST_SHA256=a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c
