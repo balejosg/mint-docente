@@ -10,7 +10,7 @@ autologin-user-timeout=0
 EOF
 
 log "Quitar accesos usados solo durante el build"
-rm -f /etc/sudoers.d/99-packer
+rm -f /etc/sudoers.d/99-packer /root/postinstalacion.sh /root/postinstalacion.log
 rm -f /etc/systemd/system/packer-ssh.service /etc/systemd/system/multi-user.target.wants/packer-ssh.service
 systemctl disable ssh.service ssh.socket 2>/dev/null || true
 rm -f /etc/ssh/ssh_host_*

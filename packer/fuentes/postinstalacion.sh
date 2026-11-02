@@ -1,4 +1,6 @@
 #!/bin/sh
+# FUENTE del script incrustado en packer/http/preseed.cfg (líneas "#POST").
+# Si lo cambias, regenera esas líneas: sed "s/^/#POST /" este_fichero
 # Ejecutado por Ubiquity (success_command) en el entorno del instalador, con el
 # sistema instalado en /target. Deja preparado el acceso SSH temporal para Packer:
 # openssh-server se instala en el PRIMER ARRANQUE (aquí no hay DNS).
@@ -17,8 +19,6 @@ ExecStart=/bin/sh -c 'until apt-get -o DPkg::Lock::Timeout=600 update && DEBIAN_
 WantedBy=multi-user.target
 UNIT
 mkdir -p /target/etc/systemd/system/multi-user.target.wants
-ln -sf /etc/systemd/system/packer-ssh.service \
-  /target/etc/systemd/system/multi-user.target.wants/packer-ssh.service
+ln -sf /etc/systemd/system/packer-ssh.service /target/etc/systemd/system/multi-user.target.wants/
 echo 'docente ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/99-packer
 chmod 440 /target/etc/sudoers.d/99-packer
-rm -f /target/root/postinstalacion.sh
