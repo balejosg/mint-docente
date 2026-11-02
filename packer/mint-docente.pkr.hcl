@@ -56,6 +56,9 @@ source "virtualbox-iso" "mint" {
   hard_drive_discard   = true
   headless             = var.headless
   http_directory       = "http"
+  # Puerto fijo: el script de postinstalación se descarga desde 10.0.2.2:8780
+  http_port_min = 8780
+  http_port_max = 8780
 
   # En BIOS el ISO arranca con ISOLINUX: <esc> abre el prompt "boot:" y
   # escribimos la línea del kernel con instalación automática de Ubiquity.
