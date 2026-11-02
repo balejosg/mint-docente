@@ -25,7 +25,7 @@ apt_get full-upgrade
 apt_get install linux-headers-generic-hwe-24.04 2>/dev/null || apt_get install linux-headers-generic
 
 log "Idioma español completo"
-apt_get install $(check-language-support -l es) language-pack-es language-pack-gnome-es \
+apt_get install language-pack-es language-pack-gnome-es \
   hunspell-es hyphen-es mythes-es libreoffice-l10n-es libreoffice-help-es
 locale-gen es_ES.UTF-8
 update-locale LANG=es_ES.UTF-8 LANGUAGE=es_ES:es

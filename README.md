@@ -9,7 +9,7 @@ Genera una máquina virtual **llave en mano** para VirtualBox (`.ova`) con:
 
 1. Importa la `.ova` en VirtualBox y la arranca. Entra solo, como el usuario `docente` (contraseña `docente`).
 2. La primera vez, un asistente le guía para conectar **GitHub Copilot** (inicio de sesión con código en github.com/login/device) u otro proveedor de pago. La imagen no contiene ninguna credencial.
-3. Se abre OpenCode sobre `~/Aula`, una carpeta vacía que organizan el docente y el agente.
+3. Se abre OpenCode sobre su carpeta de trabajo, `Documentos/Proyecto predeterminado`. Es la que crea OpenCode Desktop en su primer arranque; no se puede elegir otra. Está vacía, la organizan el docente y el agente, y en el escritorio aparece como **Aula**.
 
 ## Qué incluye
 
@@ -22,7 +22,7 @@ Genera una máquina virtual **llave en mano** para VirtualBox (`.ova`) con:
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
 | OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 5 skills en español en `/usr/share/mint-docente/` |
 
-Permisos del agente: tiene libertad dentro de `~/Aula`. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
+Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
 
 ## Construir
 

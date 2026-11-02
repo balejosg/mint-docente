@@ -17,7 +17,9 @@ rm -f /etc/ssh/ssh_host_*
 
 log "Comprobar que no queda ninguna credencial de IA"
 rm -rf "$DOCENTE_HOME/.local/share/opencode" "$DOCENTE_HOME/.local/state/opencode" \
-       "$DOCENTE_HOME/.config/mint-docente" "$DOCENTE_HOME/.cache/opencode"
+       "$DOCENTE_HOME/.config/mint-docente" "$DOCENTE_HOME/.cache/opencode" \
+       "$DOCENTE_HOME/.config/ai.opencode.desktop" \
+       "$DOCENTE_HOME/.mozilla"   # primer arranque limpio: OpenCode abre su carpeta, Firefox sin pestañas viejas
 
 log "Restos de paquetes, registros e historial"
 apt_get autoremove --purge

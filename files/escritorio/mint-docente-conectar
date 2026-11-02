@@ -1,22 +1,14 @@
 #!/bin/bash
-# Se ejecuta dentro de una terminal: guía al docente en el inicio de sesión.
+# Se ejecuta dentro de una terminal: conecta un proveedor con clave (API key).
+# (GitHub Copilot se conecta sin terminal desde mint-docente-asistente.)
 id="$1"; nombre="$2"
 clear
 echo "  ┌───────────────────────────────────────────────────────────┐"
 echo "    Conectar OpenCode con: $nombre"
 echo "  └───────────────────────────────────────────────────────────┘"
 echo
-if [ "$id" = "github-copilot" ]; then
-  echo "  1. Abajo aparecerá un CÓDIGO de 8 caracteres (por ejemplo ABCD-1234)."
-  echo "  2. Se abrirá el navegador en github.com/login/device"
-  echo "     (si no se abre, escribe esa dirección en Firefox)."
-  echo "  3. Inicia sesión en GitHub con tu cuenta de docente,"
-  echo "     escribe el código y pulsa «Authorize»."
-  echo "  4. Vuelve aquí: esta ventana se cerrará sola al terminar."
-else
-  echo "  Pega tu clave (API key) cuando se te pida y pulsa Intro."
-  echo "  Para pegar en esta ventana: Ctrl+Mayús+V."
-fi
+echo "  Pega tu clave (API key) cuando se te pida y pulsa Intro."
+echo "  Para pegar en esta ventana: Ctrl+Mayús+V."
 echo
 opencode auth login "$id"
 r=$?

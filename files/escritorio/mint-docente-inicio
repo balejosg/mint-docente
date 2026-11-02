@@ -1,5 +1,13 @@
 #!/bin/bash
-# Autoarranque de la sesión: asistente la primera vez y después OpenCode.
+# Autoarranque de la sesión: marca los lanzadores del escritorio como de
+# confianza (XFCE lo exige y necesita el D-Bus de la sesión), muestra el
+# asistente la primera vez y después abre OpenCode.
+ESCRITORIO=$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Escritorio")
+for f in "$ESCRITORIO"/*.desktop; do
+  [ -f "$f" ] || continue
+  gio set "$f" metadata::xfce-exe-checksum "$(sha256sum "$f" | cut -d' ' -f1)" 2>/dev/null || true
+done
+
 HECHO="$HOME/.config/mint-docente/asistente-hecho"
 if [ ! -e "$HECHO" ]; then
   /usr/local/bin/mint-docente-asistente

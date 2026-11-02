@@ -27,18 +27,25 @@ pandoc "$FILES/GUIA-DOCENTE.md" -o "$SHARE/GUIA-DOCENTE.pdf" --pdf-engine=xelate
   -V mainfont="Carlito" -V lang=es
 chmod 644 "$SHARE/GUIA-DOCENTE.pdf"
 
-log "Carpeta de trabajo (vacía) y enlace a la carpeta compartida"
-como_docente mkdir -p "$DOCENTE_HOME/Aula"
+log "Carpeta de trabajo: la que OpenCode Desktop crea y abre en su primer arranque"
+# OpenCode Desktop v2 no admite abrir una carpeta concreta: en su primer
+# arranque crea y abre «Documentos/<Proyecto predeterminado>». La creamos
+# vacía (OpenCode la acepta si ya existe) y el icono «Aula» apunta a ella.
+DOCUMENTOS=$(como_docente xdg-user-dir DOCUMENTS 2>/dev/null || true)
+[ -n "$DOCUMENTOS" ] && [ "$DOCUMENTOS" != "$DOCENTE_HOME" ] || DOCUMENTOS="$DOCENTE_HOME/Documentos"
+TRABAJO="$DOCUMENTOS/Proyecto predeterminado"
+como_docente mkdir -p "$TRABAJO"
 ln -sfn /media/sf_Intercambio "$DOCENTE_HOME/Intercambio"
 chown -h "$DOCENTE_USER:$DOCENTE_USER" "$DOCENTE_HOME/Intercambio"
 
-log "Iconos en el escritorio (marcados como de confianza)"
+log "Iconos en el escritorio (se marcan como de confianza al iniciar sesión)"
 ESCRITORIO=$(como_docente xdg-user-dir DESKTOP 2>/dev/null || true)
 [ -n "$ESCRITORIO" ] && [ "$ESCRITORIO" != "$DOCENTE_HOME" ] || ESCRITORIO="$DOCENTE_HOME/Escritorio"
 como_docente mkdir -p "$ESCRITORIO"
-como_docente ln -sfn "$DOCENTE_HOME/Aula" "$ESCRITORIO/Aula"
+como_docente ln -sfn "$TRABAJO" "$ESCRITORIO/Aula"
 for f in opencode-docente.desktop guia-docente.desktop cambiar-cuenta-ia.desktop; do
   instalar_docente "/usr/share/applications/$f" "$ESCRITORIO/$f" 755
-  sum=$(sha256sum "$ESCRITORIO/$f" | cut -d' ' -f1)
-  como_docente dbus-run-session -- gio set "$ESCRITORIO/$f" metadata::xfce-exe-checksum "$sum" || true
 done
+
+log "Firefox sin páginas de primer uso (el docente lo abre para GitHub)"
+install -D -m644 "$FILES/firefox-policies.json" /etc/firefox/policies/policies.json

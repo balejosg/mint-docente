@@ -28,7 +28,8 @@ prueba "OCR en español"                 "convert -size 1400x300 xc:white -font 
 prueba "Fuentes Carlito y Arial"        "fc-list | grep -q Carlito && fc-list | grep -qi Arial"
 prueba "Guest Additions"                "lsmod | grep -q vboxguest"
 prueba "docente en vboxsf"              "id -nG | grep -qw vboxsf"
-prueba "Carpeta Aula vacía"             "test -d ~/Aula && test -z \"\$(ls -A ~/Aula)\""
+prueba "Carpeta de trabajo vacía"       "D=\$(xdg-user-dir DOCUMENTS)/'Proyecto predeterminado'; test -d \"\$D\" && test -z \"\$(ls -A \"\$D\")\""
+prueba "Icono Aula → carpeta de trabajo" "test \"\$(readlink -f \"\$(xdg-user-dir DESKTOP)/Aula\")\" = \"\$(xdg-user-dir DOCUMENTS)/Proyecto predeterminado\""
 prueba "Autoarranque configurado"       "test -r ~/.config/autostart/mint-docente-inicio.desktop"
 prueba "Sin credenciales de IA"         "! opencode auth list 2>/dev/null | grep -qiE 'copilot|anthropic|openai|openrouter'"
 
