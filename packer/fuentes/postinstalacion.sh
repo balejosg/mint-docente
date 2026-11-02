@@ -1,6 +1,5 @@
 #!/bin/sh
-# FUENTE del script incrustado en packer/http/preseed.cfg (líneas "#POST").
-# Si lo cambias, regenera esas líneas: sed "s/^/#POST /" este_fichero
+# FUENTE del script que packer/generar-preseed.sh incrusta en el preseed.
 # Ejecutado por Ubiquity (success_command) en el entorno del instalador, con el
 # sistema instalado en /target. Deja preparado el acceso SSH temporal para Packer:
 # openssh-server se instala en el PRIMER ARRANQUE (aquí no hay DNS).

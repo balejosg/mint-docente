@@ -26,6 +26,7 @@ fi
 rm -rf salida/tmp
 
 cd packer
+./generar-preseed.sh
 packer init .
 packer build -force -on-error="$([ "${DEPURAR:-0}" = 1 ] && echo abort || echo cleanup)" \
   -var "iso_path=../$ISO" -var "iso_checksum=sha256:$ISO_SHA256" \
