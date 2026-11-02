@@ -118,8 +118,8 @@ build {
   }
 
   provisioner "file" {
-    source      = "../test/"
-    destination = "/var/tmp/mint-docente/test"
+    source      = "../test"
+    destination = "/var/tmp/mint-docente/"
   }
 
   provisioner "shell" {
