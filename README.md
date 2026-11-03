@@ -5,6 +5,15 @@ Genera una máquina virtual **llave en mano** para VirtualBox (`.ova`) con:
 - **OpenCode Desktop v2** como entorno de trabajo;
 - las herramientas que necesita un agente de IA para preparar, guiado por un docente, temarios, actividades, rúbricas, exámenes y documentos PDF/DOCX/ODT.
 
+## Descargar
+
+La OVA ya construida está en [Releases](https://github.com/balejosg/mint-docente/releases/latest), dividida en partes de menos de 2 GB (límite de GitHub). Descarga todas las partes y únelas:
+
+- Linux/macOS: `cat MintDocente-*.ova.part* > MintDocente.ova`
+- Windows (cmd): `copy /b MintDocente-20261102.ova.part0 + MintDocente-20261102.ova.part1 + MintDocente-20261102.ova.part2 MintDocente.ova`
+
+Comprueba el resultado con el `SHA256SUMS` de la release.
+
 ## Qué encuentra el docente
 
 1. Importa la `.ova` en VirtualBox y la arranca. Entra solo, como el usuario `docente` (contraseña `docente`).
