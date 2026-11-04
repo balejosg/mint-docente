@@ -3,3 +3,6 @@ salida/
 packer/packer_cache/
 crash.log
 packer/http/preseed.cfg
+.venv-dev/
+cache/fuentes/
+__pycache__/
