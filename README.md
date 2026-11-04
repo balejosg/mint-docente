@@ -30,7 +30,7 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | Fórmulas | Typst 0.15, TeX Live (recommended, extra, xetex, español) |
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
 | Currículo | Primaria de la Comunidad de Madrid (Decreto 61/2022): competencias, criterios y contenidos por área y ciclo, en `/usr/share/mint-docente/curriculo/` (JSON, una vista `.md` por área y la orden `curriculo` para consultarlo, buscar y comprobar códigos) |
-| OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 5 skills en español en `/usr/share/mint-docente/` |
+| OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 6 skills en español en `/usr/share/mint-docente/` |
 
 Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
 

@@ -193,16 +193,17 @@ RE_CODIGO = re.compile(
     r"|(?:CN|CS|EA|EF|LCL|ING|MAT|VCE|SLE|TYR)\.\d+\.\d+(?:\.[A-Z]\d*)?"
     r"|(?:CCL|CP|STEM|CD|CPSAA|CC|CCEC|CE)\d+"
     r"|C\.E\.\s*\d+"
-    r")(?!\w)")
+    r")(?!\w)", re.IGNORECASE)
 
 
 def extraer_codigos(texto):
-    """Códigos (o cosas que lo parecen) citados en el texto, sin repetir, en orden."""
+    """Códigos (o cosas que lo parecen) citados en el texto, tal como están
+    escritos; sin repetir (sin distinguir mayúsculas) y en orden."""
     vistos = {}
     texto = re.sub(r"[*_]", "", texto)  # énfasis Markdown (negrita parcial en .docx)
     for m in RE_CODIGO.finditer(texto):
-        vistos.setdefault(m.group(0), None)
-    return list(vistos)
+        vistos.setdefault(m.group(0).upper(), m.group(0))
+    return list(vistos.values())
 
 
 def sugerencias(codigo, indice):
@@ -215,6 +216,36 @@ def sugerencias(codigo, indice):
         return sorted(c["codigo"] for a in cargar()["areas"] for c in a["competencias"]
                       if c.get("equivalencia_rd") == codigo)
     return []
+
+
+def _texto_odt(ruta):
+    """Texto de un .odt (content.xml, párrafos, títulos y tablas) con la biblioteca estándar."""
+    import xml.etree.ElementTree as ET
+    import zipfile
+    ns = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+    with zipfile.ZipFile(ruta) as z:
+        raiz = ET.fromstring(z.read("content.xml"))
+    partes = []
+
+    def visita(el):
+        if el.text:
+            partes.append(el.text)
+        for hijo in el:
+            if hijo.tag == ns + "s":
+                partes.append(" " * int(hijo.get(ns + "c", "1")))
+            elif hijo.tag == ns + "tab":
+                partes.append("\t")
+            elif hijo.tag == ns + "line-break":
+                partes.append("\n")
+            else:
+                visita(hijo)
+            if hijo.tail:
+                partes.append(hijo.tail)
+        if el.tag in (ns + "p", ns + "h"):
+            partes.append("\n")
+
+    visita(raiz)
+    return "".join(partes)
 
 
 def leer_texto(ruta):
@@ -232,6 +263,8 @@ def leer_texto(ruta):
         valido = True
     if not valido:
         raise UsoIncorrecto(f"«{ruta}» está dañado o no es del formato que indica su extensión.")
+    if ruta.lower().endswith(".odt"):  # markitdown 0.1.9 no lo convierte
+        return _texto_odt(ruta)
     try:
         from markitdown import MarkItDown  # solo aquí: el resto usa la biblioteca estándar
     except ImportError:
@@ -345,16 +378,28 @@ def cmd_comprobar(args):
         if not os.path.isfile(ruta):
             raise UsoIncorrecto(f"No existe el archivo «{ruta}».")
     indice = indice_codigos()
-    citados, desconocidos = set(), []
+    citados, desconocidos, avisos = set(), [], set()
     for ruta in args.archivo:
         try:
             texto = leer_texto(ruta)
         except Exception as e:
             raise UsoIncorrecto(f"No se puede leer «{ruta}»: {e}")
+        if not texto.strip() and not ruta.lower().endswith((".md", ".txt")):
+            raise UsoIncorrecto(
+                f"No se ha podido leer ningún texto de «{ruta}»: no se puede comprobar. "
+                "Si es un PDF escaneado o hecho con imágenes, pásalo antes por OCR "
+                "(`ocrmypdf -l spa entrada.pdf salida.pdf`) y vuelve a comprobarlo.")
         for cod in extraer_codigos(texto):
-            citados.add(cod)
-            if cod not in indice:
+            norm = cod.upper()
+            citados.add(norm)
+            if norm in ("CE1", "CE2", "CE3"):
+                avisos.add(f"Aviso: {cod} en «{ruta}» es ambiguo: ¿descriptor {norm} "
+                           f"(competencia emprendedora) o competencia específica sin área? "
+                           f"Si es lo segundo, escríbelo como <ÁREA>.{norm}.")
+            if norm not in indice:
                 desconocidos.append((ruta, cod))
+    for a in sorted(avisos):
+        print(a)
     if not citados:
         print("No se ha citado ningún código del currículo.")
         return 0
@@ -363,9 +408,11 @@ def cmd_comprobar(args):
         return 0
     print(f"Códigos que no existen en el currículo de Madrid ({len(desconocidos)}):")
     for ruta, cod in desconocidos:
-        sug = sugerencias(cod, indice)
+        norm = cod.upper()
+        sug = sugerencias(norm, indice)
         extra = f" → ¿quizá {', '.join(sug)}?" if sug else ""
-        print(f"- {ruta}: {cod}{extra}")
+        forma = f" (normalizado: {norm})" if norm != cod else ""
+        print(f"- {ruta}: {cod}{forma}{extra}")
     return 1
 
 

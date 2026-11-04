@@ -14,7 +14,7 @@ Siempre que el encargo sea de **Primaria en Madrid** y necesite competencias, cr
 Nunca le muestres comandos ni códigos internos sin explicarlos. Dile, por ejemplo, «he consultado el currículo de Madrid» y cita en el documento el criterio con su código y su texto.
 
 ## Del curso al ciclo
-El currículo se organiza por ciclos: C1 (1º y 2º), C2 (3º y 4º) y C3 (5º y 6º). Si el docente habla de curso («3º»), usa `--curso 3` (da el ciclo C2); un curso fuera de 1–6 es un error. **Al redactar para un curso concreto, pasa siempre `--curso` o `--ciclo`**: algunas competencias tienen una redacción distinta en cada ciclo y sin él podrías citar la equivocada.
+El currículo se organiza por ciclos: C1 (1º y 2º), C2 (3º y 4º) y C3 (5º y 6º). Si el docente habla de curso («3º»), usa `--curso 3` (da el ciclo C2). `--ciclo` solo admite C1, C2, C3 o E, no un número; un curso fuera de 1–6 es un error. **Al redactar para un curso concreto, pasa siempre `--curso` o `--ciclo`**: algunas competencias tienen una redacción distinta en cada ciclo y sin él podrías citar la equivocada.
 - **Educación en Valores Cívicos y Éticos (VCE)** solo se imparte en 5º (ciclo 3). Con otro curso, avisa al docente.
 - **Segunda Lengua Extranjera (SLE)** y **Tecnología y Robótica (TYR)** son áreas de etapa: un solo bloque para toda Primaria (ciclo `E`); cualquier curso da `E`.
 - Religión no tiene currículo en este decreto: no está.
@@ -43,7 +43,7 @@ Las calificaciones de Primaria son IN (menos de 5), SU (de 5 a menos de 6), BI (
 3. `curriculo buscar división --area MAT --curso 3` — localizar contenidos o criterios por tema (admite sin tildes y mayúsculas).
 4. `curriculo descriptores [CCL]` — texto de los descriptores de una competencia clave.
 5. Redactar el documento citando solo lo que haya devuelto la herramienta.
-6. **Antes de entregar:** `curriculo comprobar Programación.docx` (acepta .docx, .xlsx, .pdf, .md… y lee también las tablas). Si sale 0, todo existe. Si sale 1, lista los códigos desconocidos con sugerencias: corrígelos y vuelve a ejecutarlo. Si sale 2, hay un error de uso o de archivo.
+6. **Antes de entregar:** `curriculo comprobar Programación.docx` (acepta .docx, .odt, .xlsx, .pdf, .md… y lee también las tablas). Si el texto lo ha pegado el docente en el chat, guárdalo antes en un archivo (p. ej. `/tmp/texto.md`) y comprueba ese archivo. Si sale 0 y dice «Todos los códigos (N)…», todo existe. Si dice «No se ha citado ningún código» en un documento que sí cita criterios, la herramienta no los ha leído (p. ej. numeración de un libro de texto): no lo des por bueno. Lee también los avisos: `CE1`–`CE3` sueltos son ambiguos; escribe siempre `<ÁREA>.CE<n>` para las competencias específicas. Si el PDF no tiene texto (escaneado), sale 2: pásalo antes por `ocrmypdf -l spa`. Si sale 1, lista los códigos desconocidos con sugerencias: corrígelos y vuelve a ejecutarlo. Si sale 2, hay un error de uso o de archivo.
 
 Ejemplo real: `MAT.3.1.C2` — «Analizar conjeturas matemáticas sencillas identificando patrones, propiedades y relaciones de forma pautada.» (Matemáticas, 3º–4º). `MAT.9.9.C2` no existe y `comprobar` lo marcaría.
 

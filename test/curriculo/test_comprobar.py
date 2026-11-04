@@ -138,6 +138,55 @@ class TestComprobar(ComprobarBase):
         self.assertEqual(r.returncode, 2, r.stdout)
         self.assertIn("roto.docx", r.stdout + r.stderr)
 
+    def test_odt(self):
+        import zipfile
+        ns = ('xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+              'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+              'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"')
+        contenido = (f'<?xml version="1.0" encoding="UTF-8"?><office:document-content {ns}>'
+                     '<office:body><office:text><text:p>Criterio <text:span>MAT.3.1.</text:span>C2</text:p>'
+                     '<table:table><table:table-row><table:table-cell><text:p>LCL.7.7.C7</text:p>'
+                     '</table:table-cell></table:table-row></table:table>'
+                     '</office:text></office:body></office:document-content>')
+        ruta = self.dir / "prog.odt"
+        with zipfile.ZipFile(ruta, "w") as z:
+            z.writestr("mimetype", "application/vnd.oasis.opendocument.text",
+                       compress_type=zipfile.ZIP_STORED)
+            z.writestr("content.xml", contenido)
+        r = curriculo("comprobar", str(ruta))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("LCL.7.7.C7", r.stdout)
+        self.assertNotIn("MAT.3.1.C2", r.stdout)
+
+    def test_pdf_sin_texto_no_es_limpio(self):
+        pdf = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+               b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+               b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+               b"trailer<</Root 1 0 R/Size 4>>\n%%EOF\n")
+        ruta = self.dir / "escaneado.pdf"
+        ruta.write_bytes(pdf)
+        r = curriculo("comprobar", str(ruta))
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("escaneado.pdf", r.stdout + r.stderr)
+        self.assertIn("ningún texto", r.stdout + r.stderr)
+        self.assertIn("ocrmypdf -l spa", r.stdout + r.stderr)
+
+    def test_mayusculas_mezcladas(self):
+        p = self.md("a.md", "Criterios Mat.9.9.C2 y mat.9.9.c2 y mat.3.1.c2.")
+        r = curriculo("comprobar", p)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("Mat.9.9.C2", r.stdout)
+        self.assertIn("(normalizado: MAT.9.9.C2)", r.stdout)
+        self.assertNotIn("mat.3.1.c2", r.stdout)
+
+    def test_ce_suelto_avisa_sin_cambiar_salida(self):
+        p = self.md("a.md", "Competencias CE1 y CE2, y MAT.3.1.C2.")
+        r = curriculo("comprobar", p)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("Aviso: CE1", r.stdout)
+        self.assertIn("<ÁREA>.CE1", r.stdout)
+        self.assertIn("Todos los códigos", r.stdout)
+
     def test_sin_codigos(self):
         p = self.md("a.md", "Hoy hablamos de fracciones y del río Tajo (MP3).")
         r = curriculo("comprobar", p)
