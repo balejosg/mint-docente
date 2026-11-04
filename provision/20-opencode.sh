@@ -23,3 +23,24 @@ install -D -m644 "$FILES/opencode/AGENTS.md" "$SHARE/AGENTS.md"
 rm -rf "$SHARE/skills"
 cp -r "$FILES/opencode/skills" "$SHARE/skills"
 chmod -R a+rX "$SHARE"
+
+log "Currículo de Primaria (Madrid)"
+# Las variables permiten probar el bloque en un directorio temporal sin ser root.
+CURRICULO_DIR=${CURRICULO_DIR:-$SHARE/curriculo}
+CURRICULO_BIN=${CURRICULO_BIN:-/usr/local/bin/curriculo}
+CURRICULO_PY=${CURRICULO_PY:-/opt/docente-py/bin/python}
+install -D -m644 "$FILES/curriculo/primaria-madrid.json" "$CURRICULO_DIR/primaria-madrid.json"
+install -D -m644 "$FILES/curriculo/curriculo.py" "$CURRICULO_DIR/curriculo.py"
+install -d "$(dirname "$CURRICULO_BIN")"
+printf '#!/bin/sh\nexec %s %s "$@"\n' "$CURRICULO_PY" "$CURRICULO_DIR/curriculo.py" > "$CURRICULO_BIN"
+chmod 755 "$CURRICULO_BIN"
+# Una vista legible por área (todos los ciclos), para abrirla directamente
+rm -f "$CURRICULO_DIR"/*.md
+"$CURRICULO_PY" -I -c '
+import json, sys
+for a in json.load(open(sys.argv[1], encoding="utf-8"))["areas"]:
+    print(a["codigo"] + "\t" + a["nombre"])
+' "$CURRICULO_DIR/primaria-madrid.json" | while IFS=$'\t' read -r codigo nombre; do
+  "$CURRICULO_BIN" ver "$codigo" --tipo todo > "$CURRICULO_DIR/${nombre//:/ -}.md"
+done
+chmod -R a+rX "$CURRICULO_DIR"

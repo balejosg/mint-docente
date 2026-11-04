@@ -25,6 +25,15 @@ fi
 [ -e "salida/$NOMBRE.ova" ] && { echo "Ya existe salida/$NOMBRE.ova"; exit 1; }
 rm -rf salida/tmp
 
+echo "==> Pruebas del currículo (anfitrión)"
+if [ -x .venv-dev/bin/python ]; then
+  .venv-dev/bin/python -m unittest discover -s test/curriculo
+else
+  # Sin .venv-dev solo se ejecutan las pruebas que no necesitan módulos externos
+  python3 -I -m unittest discover -s test/curriculo -p 'test_datos.py'
+  python3 -I -m unittest discover -s test/curriculo -p 'test_cli.py'
+fi
+
 cd packer
 ./generar-preseed.sh
 packer init .
