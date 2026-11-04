@@ -10,6 +10,7 @@ Códigos de salida: 0 todo bien; 1 códigos desconocidos o sin resultados;
 import argparse
 import json
 import os
+import re
 import sys
 import unicodedata
 
@@ -183,6 +184,46 @@ def lista_relaciones(area, ciclo):
     return out
 
 
+# Todo lo que PAREZCA un código (a propósito amplia): competencias
+# (CS.CE1, CMNSC.CE7), criterios con o sin ciclo (MAT.3.1.C2, MAT.3.1),
+# descriptores (CCL1), CE3 sin área y «C.E. 3».
+RE_CODIGO = re.compile(
+    r"(?<![\w.])(?:"
+    r"[A-Z]{2,5}\.CE\d+"
+    r"|[A-Z]{2,5}\.\d+\.\d+(?:\.[A-Z]\d*)?"
+    r"|(?:CCL|CP|STEM|CD|CPSAA|CC|CCEC|CE)\d+"
+    r"|C\.E\.\s*\d+"
+    r")(?!\w)")
+
+
+def extraer_codigos(texto):
+    """Códigos (o cosas que lo parecen) citados en el texto, sin repetir, en orden."""
+    vistos = {}
+    for m in RE_CODIGO.finditer(texto):
+        vistos.setdefault(m.group(0), None)
+    return list(vistos)
+
+
+def sugerencias(codigo, indice):
+    """Códigos existentes que pueden ser lo que se quiso citar."""
+    m = re.fullmatch(r"([A-Z]{2,5})\.(\d+)\.(\d+)(?:\.\w+)?", codigo)
+    if m:
+        pref = f"{m.group(1)}.{m.group(2)}.{m.group(3)}."
+        return sorted(c for c in indice if c.startswith(pref))
+    if re.fullmatch(r"[A-Z]{2,5}\.CE\d+", codigo):
+        return sorted(c["codigo"] for a in cargar()["areas"] for c in a["competencias"]
+                      if c.get("equivalencia_rd") == codigo)
+    return []
+
+
+def leer_texto(ruta):
+    if ruta.lower().endswith((".md", ".txt")):
+        with open(ruta, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    from markitdown import MarkItDown  # solo aquí: el resto usa la biblioteca estándar
+    return MarkItDown().convert(ruta).text_content
+
+
 # ---------------------------------------------------------------- subórdenes
 
 def cmd_areas(args):
@@ -284,6 +325,35 @@ def cmd_fuentes(args):
     return 0
 
 
+def cmd_comprobar(args):
+    for ruta in args.archivo:
+        if not os.path.isfile(ruta):
+            raise UsoIncorrecto(f"No existe el archivo «{ruta}».")
+    indice = indice_codigos()
+    citados, desconocidos = set(), []
+    for ruta in args.archivo:
+        try:
+            texto = leer_texto(ruta)
+        except Exception as e:
+            raise UsoIncorrecto(f"No se puede leer «{ruta}»: {e}")
+        for cod in extraer_codigos(texto):
+            citados.add(cod)
+            if cod not in indice:
+                desconocidos.append((ruta, cod))
+    if not citados:
+        print("No se ha citado ningún código del currículo.")
+        return 0
+    if not desconocidos:
+        print(f"Todos los códigos ({len(citados)}) existen en el currículo de Madrid.")
+        return 0
+    print(f"Códigos que no existen en el currículo de Madrid ({len(desconocidos)}):")
+    for ruta, cod in desconocidos:
+        sug = sugerencias(cod, indice)
+        extra = f" → ¿quizá {', '.join(sug)}?" if sug else ""
+        print(f"- {ruta}: {cod}{extra}")
+    return 1
+
+
 def parser():
     p = argparse.ArgumentParser(prog="curriculo",
                                 description="Consulta el currículo de Primaria de la Comunidad de Madrid.")
@@ -307,6 +377,9 @@ def parser():
     d = sub.add_parser("descriptores", help="descriptores del Perfil de salida")
     d.add_argument("clave", nargs="?", help="competencia clave (CCL, STEM...)")
     d.set_defaults(f=cmd_descriptores)
+    c = sub.add_parser("comprobar", help="comprueba que los códigos citados en archivos existen")
+    c.add_argument("archivo", nargs="+", help=".md, .txt, .docx, .odt, .pdf o .xlsx")
+    c.set_defaults(f=cmd_comprobar)
     sub.add_parser("fuentes", help="normas, fechas y URL").set_defaults(f=cmd_fuentes)
     return p
 
