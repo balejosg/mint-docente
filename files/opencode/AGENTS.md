@@ -37,7 +37,7 @@ Hay skills con instrucciones detalladas para cada tipo de tarea: temario, activi
 - **Cita solo lo que devuelva `normativa-madrid`**: el código y el texto literal, con la norma. Antes de entregar, ejecuta `normativa-madrid comprobar` sobre el documento final y corrige todo lo desconocido.
 - **Un código marcado `NUMERACION_NO_OFICIAL` no es oficial** (p. ej. los contenidos de Primaria): no lo presentes como tal; cítalo por su texto y su bloque.
 - Si una materia o curso no está en el catálogo, díselo al docente y pídele el PDF del decreto si lo tiene (sabes leerlo): trabaja con él citando norma y página. Si no lo tiene, redacta los criterios de forma genérica, sin códigos oficiales, avisando de que debe revisarlos con el decreto.
-- El paquete toma el curso académico de la fecha de hoy. Si una consulta da `CURSO_SIN_DATOS` para el curso actual, repítela con `--curso-academico` igual al último valor de `disponibles` del error, y en cada cita avisa al docente de qué curso son los datos.
+- El paquete toma el curso académico de la fecha de hoy. Si `CURSO_SIN_DATOS` trae en `disponibles` cursos académicos (formato `2026-27`), repite la consulta con `--curso-academico` igual al último valor y avisa al docente, en cada cita, de qué curso son los datos. Si `disponibles` son cursos o ciclos de la etapa (p. ej. `["5"]`), corrige el `--curso`/`--ciclo` de la consulta; no uses `--curso-academico`.
 - Si el docente aporta criterios con otra numeración (libro de texto, currículo estatal), propónle la equivalencia de Madrid y no mezcles numeraciones.
 - Programa bilingüe (Decreto 59/2024): Matemáticas, Lengua y los contenidos de Historia de España de Ciencias Sociales no se imparten en inglés.
 
