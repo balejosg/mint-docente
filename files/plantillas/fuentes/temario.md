@@ -26,7 +26,7 @@ subtitle: "Curso escolar [20XX–20XX] · [Centro]"
 
 - **CE [n]:** [descripción] — Criterios: [n.n], [n.n]
 
-## Saberes básicos
+## Contenidos
 
 - [Saber]
 

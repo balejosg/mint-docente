@@ -37,7 +37,7 @@ Si das clase en la Comunidad de Madrid, el asistente consulta la normativa ofici
 Qué tiene cargado:
 - **Primaria:** todas las áreas, con sus competencias, criterios y contenidos por ciclo. Los contenidos de Primaria no tienen numeración oficial en el decreto: el asistente los cita por su bloque y su texto, sin darles un código como si fuera oficial.
 - **ESO y Bachillerato:** solo algunas materias, las de computación y digitalización (ESO: Ciencias de la Computación, Tecnología y Digitalización y Digitalización; Bachillerato: Ciencias de la Computación), además del perfil de salida y los requisitos de la programación.
-- **Formación Profesional:** el ciclo de Desarrollo de Aplicaciones Multiplataforma y algunos módulos de especialización.
+- **Formación Profesional:** el ciclo de Desarrollo de Aplicaciones Multiplataforma y algunos módulos optativos.
 
 Si das una materia que no está, el asistente te lo dirá: te preparará la programación, pero redactará las competencias y los criterios de forma genérica, sin códigos oficiales. Revísalos con el decreto antes de usarlos.
 

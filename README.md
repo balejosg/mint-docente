@@ -29,7 +29,7 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | OCR | ocrmypdf + tesseract (spa, cat, glg, eus, eng) |
 | Fórmulas | Typst 0.15, TeX Live (recommended, extra, xetex, español) |
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
-| Normativa de Madrid | Paquete `normativa-madrid` 0.1.0 (wheel con sha256) instalado en `/opt/docente-py`, con la orden `normativa-madrid` para consultar, buscar y comprobar códigos sin Internet. Cobertura: Primaria completa; solo algunas materias de ESO y Bachillerato (computación y digitalización); FP (DAM y módulos de especialización). Una vista `.md` por ficha del catálogo en `/usr/share/mint-docente/normativa/` |
+| Normativa de Madrid | Paquete `normativa-madrid` 0.1.0 (wheel con sha256) instalado en `/opt/docente-py`, con la orden `normativa-madrid` para consultar, buscar y comprobar códigos sin Internet. Cobertura: Primaria completa; solo algunas materias de ESO y Bachillerato (computación y digitalización); FP (DAM y algunos módulos optativos). Una vista `.md` por ficha del catálogo en `/usr/share/mint-docente/normativa/` |
 | OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 6 skills en español en `/usr/share/mint-docente/` |
 
 Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
@@ -79,7 +79,14 @@ docs/superpowers/          notas históricas del currículo propio, ya sustituid
 - **OpenCode:** `OPENCODE_VERSION` y `OPENCODE_DEB_SHA256` en `provision/20-opencode.sh`.
 - **Mint:** `ISO_URL`/`ISO_SHA256` en `build.sh` y `casper_uuid` en el `.pkr.hcl` (está en `isolinux/live.cfg` del ISO).
 - **Typst:** `TYPST_VERSION`/`TYPST_SHA256` en `provision/10-documentos.sh`.
-- **Normativa de Madrid:** los datos y el código viven en el repositorio del paquete (`normativa-madrid`), no aquí. Para subir de versión: publica la release en ese repositorio, y aquí cambia la URL y `NORMATIVA_WHEEL_SHA256` en `provision/20-opencode.sh` (y el número de versión en su título), copia `skill/normativa-madrid/SKILL.md` de la nueva etiqueta a `files/opencode/skills/normativa-madrid/` y actualiza la URL y el sha256 de `ORIGEN`. Después ejecuta `test/probar-normativa.sh` y revisa que la cobertura descrita en `README.md`, `files/GUIA-DOCENTE.md` y `AGENTS.md` coincide con `normativa-madrid catalogo`.
+- **Normativa de Madrid:** los datos y el código viven en el repositorio del paquete (`normativa-madrid`), no aquí. Para subir de versión:
+  1. Publica la release en ese repositorio.
+  2. Cambia el número de versión en la tabla de este README («0.1.0»).
+  3. Cambia la URL y `NORMATIVA_WHEEL_SHA256` en `provision/20-opencode.sh` (y el número de versión en su título).
+  4. Copia `skill/normativa-madrid/SKILL.md` de la nueva etiqueta a `files/opencode/skills/normativa-madrid/` y actualiza la URL y el sha256 de `ORIGEN`.
+  5. Contrasta con `normativa-madrid catalogo` la cobertura descrita en `files/opencode/AGENTS.md`, `files/GUIA-DOCENTE.md`, este README y `files/opencode/skills/temario/SKILL.md`.
+  6. Ejecuta `test/probar-normativa.sh`.
+- **Cada curso:** el paquete toma el curso académico de la fecha de hoy y la 0.1.0 solo trae datos de 2026-27. A partir del 1-9-2027 las consultas por defecto darían `CURSO_SIN_DATOS`, así que la OVA hay que reconstruirla cada curso con un paquete que traiga los datos del curso nuevo (el agente tiene una regla de reserva con `--curso-academico`, pero con datos antiguos).
 
 ## Notas técnicas (aprendidas al construirla)
 

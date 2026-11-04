@@ -7,7 +7,7 @@ OPENCODE_DEB_SHA256=c827e714220de744c829fdea55540ed814b1372061e7a905fde0978f9f81
 
 log "OpenCode Desktop $OPENCODE_VERSION"
 tmp=$(mktemp -d)
-curl -fsSL -o "$tmp/opencode.deb" \
+curl -fsSL --retry 3 -o "$tmp/opencode.deb" \
   "https://github.com/anomalyco/opencode/releases/download/v$OPENCODE_VERSION/opencode-desktop-linux-amd64.deb"
 echo "$OPENCODE_DEB_SHA256  $tmp/opencode.deb" | sha256sum -c -
 apt_get install "$tmp/opencode.deb"
@@ -33,7 +33,7 @@ NORMATIVA_WHEEL_URL=${NORMATIVA_WHEEL_URL:-https://github.com/balejosg/normativa
 NORMATIVA_WHEEL_SHA256=${NORMATIVA_WHEEL_SHA256:-09185b3b1920e8f85f3795f02c4525f06ba8e1aa299c72a3cf96d742854a4609}
 tmp=$(mktemp -d)
 wheel="$tmp/${NORMATIVA_WHEEL_URL##*/}"   # pip exige el nombre original del wheel
-curl -fsSL -o "$wheel" "$NORMATIVA_WHEEL_URL"
+curl -fsSL --retry 3 -o "$wheel" "$NORMATIVA_WHEEL_URL"
 echo "$NORMATIVA_WHEEL_SHA256  $wheel" | sha256sum -c -
 "$NORMATIVA_PY" -m pip install --no-cache-dir "$wheel"
 rm -rf "$tmp"
