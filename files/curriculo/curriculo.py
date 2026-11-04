@@ -189,8 +189,8 @@ def lista_relaciones(area, ciclo):
 # descriptores (CCL1), CE3 sin área y «C.E. 3».
 RE_CODIGO = re.compile(
     r"(?<![\w.])(?:"
-    r"[A-Z]{2,5}\.CE\d+"
-    r"|[A-Z]{2,5}\.\d+\.\d+(?:\.[A-Z]\d*)?"
+    r"(?:CMNSC|CN|CS|EA|EF|LCL|ING|MAT|VCE|SLE|TYR)\.CE\d+"
+    r"|(?:CN|CS|EA|EF|LCL|ING|MAT|VCE|SLE|TYR)\.\d+\.\d+(?:\.[A-Z]\d*)?"
     r"|(?:CCL|CP|STEM|CD|CPSAA|CC|CCEC|CE)\d+"
     r"|C\.E\.\s*\d+"
     r")(?!\w)")
@@ -199,6 +199,7 @@ RE_CODIGO = re.compile(
 def extraer_codigos(texto):
     """Códigos (o cosas que lo parecen) citados en el texto, sin repetir, en orden."""
     vistos = {}
+    texto = re.sub(r"[*_]", "", texto)  # énfasis Markdown (negrita parcial en .docx)
     for m in RE_CODIGO.finditer(texto):
         vistos.setdefault(m.group(0), None)
     return list(vistos)
@@ -220,8 +221,22 @@ def leer_texto(ruta):
     if ruta.lower().endswith((".md", ".txt")):
         with open(ruta, encoding="utf-8", errors="replace") as f:
             return f.read()
-    from markitdown import MarkItDown  # solo aquí: el resto usa la biblioteca estándar
-    return MarkItDown().convert(ruta).text_content
+    # markitdown trata como texto lo que no reconoce: se comprueba el formato antes
+    with open(ruta, "rb") as f:
+        cabecera = f.read(5)
+    if ruta.lower().endswith((".docx", ".xlsx", ".odt")):
+        valido = cabecera[:2] == b"PK"
+    elif ruta.lower().endswith(".pdf"):
+        valido = cabecera.startswith(b"%PDF")
+    else:
+        valido = True
+    if not valido:
+        raise UsoIncorrecto(f"«{ruta}» está dañado o no es del formato que indica su extensión.")
+    try:
+        from markitdown import MarkItDown  # solo aquí: el resto usa la biblioteca estándar
+    except ImportError:
+        raise UsoIncorrecto("Falta markitdown para leer «{}».".format(ruta))
+    return MarkItDown().convert(ruta).text_content or ""
 
 
 # ---------------------------------------------------------------- subórdenes

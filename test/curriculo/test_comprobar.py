@@ -87,12 +87,12 @@ class TestComprobar(ComprobarBase):
         ws = wb.active
         ws["A1"] = "MAT.3.1.C2"
         ws["B2"] = "CS.CE2"
-        ws["C3"] = "XYZ.1.1.C1"
+        ws["C3"] = "MAT.9.9.C1"
         ruta = self.dir / "prog.xlsx"
         wb.save(str(ruta))
         r = curriculo("comprobar", str(ruta))
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("XYZ.1.1.C1", r.stdout)
+        self.assertIn("MAT.9.9.C1", r.stdout)
         self.assertNotIn("CS.CE2", r.stdout)
 
     def test_varios_archivos(self):
@@ -112,6 +112,31 @@ class TestComprobar(ComprobarBase):
         r = curriculo("comprobar", str(self.dir / "no_existe.md"))
         self.assertEqual(r.returncode, 2)
         self.assertIn("no_existe.md", r.stderr + r.stdout)
+
+    def test_siglas_ajenas_no_son_codigos(self):
+        p = self.md("a.md", "UD.3.1, PDF.1.2, ESO.1.2, LOE, Art. 6.6, RD 157/2022")
+        r = curriculo("comprobar", p)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("No se ha citado ningún código del currículo", r.stdout)
+
+    def test_docx_negrita_parcial(self):
+        import docx
+        d = docx.Document()
+        par = d.add_paragraph()
+        par.add_run("MAT.3.1.").bold = True
+        par.add_run("C2")
+        ruta = self.dir / "neg.docx"
+        d.save(str(ruta))
+        r = curriculo("comprobar", str(ruta))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("(1)", r.stdout)
+
+    def test_docx_corrupto(self):
+        ruta = self.dir / "roto.docx"
+        ruta.write_bytes(b"\x00\x01basura que no es un zip")
+        r = curriculo("comprobar", str(ruta))
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("roto.docx", r.stdout + r.stderr)
 
     def test_sin_codigos(self):
         p = self.md("a.md", "Hoy hablamos de fracciones y del río Tajo (MP3).")
