@@ -8,7 +8,7 @@ description: Crear o revisar temarios, programaciones didácticas, unidades did�
 ## Antes de empezar
 Si no lo sabes ya, pregunta en una sola tanda:
 1. Etapa, curso y materia (p. ej. «3º ESO, Biología y Geología»).
-2. Comunidad autónoma, si quiere ajustarse al currículo oficial.
+2. Comunidad autónoma, si quiere ajustarse al currículo oficial. Si la etapa es Primaria y la comunidad es Madrid, carga la skill `curriculo-madrid` y usa sus códigos.
 3. Qué necesita: temario breve (índice de unidades), programación completa o una unidad o situación de aprendizaje concreta.
 4. Número de sesiones o semanas disponibles, y formato de entrega (por defecto .docx + .pdf).
 

@@ -30,6 +30,10 @@ Escribe lo que necesitas como se lo pedirías a un compañero. Por ejemplo:
 
 El asistente guarda los documentos en tu carpeta **Aula** (está en el escritorio). Si quiere borrar algo o salir de esa carpeta, **te pedirá permiso**.
 
+# Currículo de Madrid
+
+Si das clase en Primaria en la Comunidad de Madrid, el asistente conoce el currículo oficial (competencias, criterios de evaluación, contenidos y perfil de salida) y lo cita tal cual en tus programaciones. Antes de entregarte un documento comprueba que todo lo que cita existe. Si usas criterios de tu libro de texto o de otra comunidad, te propondrá el equivalente de Madrid.
+
 # Pasar archivos entre tu ordenador y esta máquina
 
 - **Arrastrar y soltar** archivos sobre la ventana de la máquina virtual, o **copiar y pegar** texto.
