@@ -1,6 +1,6 @@
 ---
 name: Temario y programación didáctica
-description: Crear o revisar temarios, programaciones didácticas, unidades didácticas y situaciones de aprendizaje (estructura, objetivos, competencias, criterios de evaluación, saberes, temporalización).
+description: Crear o revisar temarios, programaciones didácticas, unidades didácticas y situaciones de aprendizaje (estructura, objetivos, competencias, criterios de evaluación, contenidos, temporalización).
 ---
 
 # Temario y programación didáctica
@@ -20,7 +20,7 @@ Para cada **unidad didáctica / situación de aprendizaje**:
 - Temporalización (sesiones) y trimestre.
 - Competencias específicas y descriptores del perfil de salida implicados.
 - Criterios de evaluación (numerados como en el currículo si se conocen).
-- Saberes básicos.
+- Contenidos. En Madrid se llaman así; «saberes básicos» es el término del currículo estatal y de otras comunidades. Usa el del currículo que aplique y no mezcles los dos.
 - Secuencia de actividades: inicio → desarrollo → cierre, con producto final.
 - Instrumentos de evaluación (rúbrica, lista de cotejo, prueba escrita…) y peso.
 - Atención a la diversidad (medidas DUA: varias formas de representación, de expresión y de implicación).
@@ -28,7 +28,7 @@ Para cada **unidad didáctica / situación de aprendizaje**:
 
 El **temario breve** es una tabla: Unidad | Título | Contenidos clave | Sesiones | Trimestre.
 
-**No inventes códigos de criterios** oficiales. Si no tienes el currículo, redáctalos de forma genérica y avisa al docente de que debe revisarlos con el decreto de su comunidad.
+**No inventes códigos de criterios** oficiales. Si no tienes el currículo, redáctalos de forma genérica y avisa al docente de que debe revisarlos con el decreto de su comunidad. Ahora mismo eso incluye la **ESO y el Bachillerato de Madrid**: su currículo no está cargado en la máquina.
 
 ## Producción del documento
 1. Parte de `/usr/share/mint-docente/plantillas/temario.docx`, o de la plantilla del docente si aporta una.
