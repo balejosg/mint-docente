@@ -39,7 +39,7 @@ No resumas ni interpretes: es un recuento. Si el propio boletín tiene una errat
 ## Fase 2 (con el JSON del área)
 
 Ahora te adjunto `{ÁREA}.json`: lo que un programa ha extraído automáticamente de ese mismo apartado del PDF. Su estructura es:
-- `competencias[]`: `{codigo, numero, texto, descriptores[], equivalencia_rd}`;
+- `competencias[]`: `{codigo, numero, texto, variantes, descriptores[], equivalencia_rd}`. `texto` es la redacción del primer ciclo en que aparece la competencia; `variantes` (`{ciclo: texto}`) recoge los ciclos en que el decreto la redacta de otra forma;
 - `criterios[]`: `{codigo, ciclo, competencia, texto, pagina}`. El código es `{ÁREA}.<n>.<m>.<ciclo>`, con `ciclo` = C1, C2, C3 o E;
 - `contenidos[]`: `{ciclo, bloque, subbloque, nivel, texto, pagina}`.
 
@@ -51,7 +51,7 @@ Compáralo con el PDF **elemento a elemento**, sin muestrear. Comprueba:
    - cada criterio cuelga de su competencia y del ciclo correcto;
    - cada contenido, de su bloque, su sub-bloque y su ciclo;
    - el `nivel` de anidamiento de las viñetas es correcto.
-4. **Competencias:** el texto completo de cada una está en `texto`, sin partes de criterios mezcladas.
+4. **Competencias:** el texto completo de cada una está en `texto` (o en `variantes` para el ciclo correspondiente), sin partes de criterios mezcladas. Si el decreto redacta la misma competencia de forma distinta en otro ciclo, esa redacción debe estar en `variantes`; si es idéntica, no debe estar.
 5. **Solo en CN y CS:**
    - `equivalencia_rd` coincide con la correspondencia que declara el propio decreto en la introducción del área: CN CE1–6 = Conocimiento del Medio CE1–6; CS CE1–5 = Conocimiento del Medio CE5–9;
    - los `descriptores` de cada competencia coinciden con los que da el RD 157/2022, Anexo II, área de Conocimiento del Medio Natural, Social y Cultural, en la frase «se conecta con los siguientes descriptores del Perfil de salida».
