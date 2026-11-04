@@ -172,6 +172,9 @@ def lista_relaciones(area, ciclo):
     for comp in area["competencias"]:
         out += ["", f"### {comp['codigo']} — {texto_competencia(comp, ciclo)}", "",
                 f"- Descriptores: {', '.join(comp['descriptores'])}"]
+        if ciclo is None:
+            out += [f"- Redacción en {cic}: {txt}"
+                    for cic, txt in comp.get("variantes", {}).items()]
         if comp.get("equivalencia_rd"):
             out.append(f"- Equivalencia en el RD 157/2022: {comp['equivalencia_rd']}")
         out.append("- Criterios:")

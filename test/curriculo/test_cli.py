@@ -73,8 +73,10 @@ class TestCli(unittest.TestCase):
         sys.path.insert(0, str(CLI.parent))
         try:
             import curriculo as modulo
+            self.addCleanup(sys.modules.pop, "curriculo", None)
         finally:
             sys.path.pop(0)
+        self.addCleanup(os.environ.pop, "CURRICULO_JSON", None)
         os.environ["CURRICULO_JSON"] = str(DATOS)
         for nombre, codigo in esperado.items():
             with self.subTest(nombre=nombre):
@@ -133,6 +135,15 @@ class TestCli(unittest.TestCase):
         # buscar en un ciclo concreto muestra la redacción de ese ciclo
         b = curriculo("buscar", "de manera creativa", "--area", "LCL", "--ciclo", "C3")
         self.assertTrue([l for l in lineas(b) if l.startswith("LCL.CE6")], b.stdout)
+
+    def test_variantes_en_relaciones(self):
+        c3 = curriculo("ver", "LCL", "--ciclo", "C3", "--tipo", "relaciones")
+        c1 = curriculo("ver", "LCL", "--ciclo", "C1", "--tipo", "relaciones")
+        todo = curriculo("ver", "LCL", "--tipo", "relaciones")
+        self.assertIn("de manera creativa", c3.stdout)
+        self.assertNotIn("de manera creativa", c1.stdout)
+        self.assertIn("de manera creativa", todo.stdout)
+        self.assertIn("Redacción en C3", todo.stdout)
 
     def test_ver_contenidos_agrupados(self):
         r = curriculo("ver", "EA", "--ciclo", "C1", "--tipo", "contenidos")
