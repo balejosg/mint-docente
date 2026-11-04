@@ -24,23 +24,33 @@ rm -rf "$SHARE/skills"
 cp -r "$FILES/opencode/skills" "$SHARE/skills"
 chmod -R a+rX "$SHARE"
 
-log "Currículo de Primaria (Madrid)"
+log "Normativa de Madrid (normativa-madrid 0.1.0)"
 # Las variables permiten probar el bloque en un directorio temporal sin ser root.
-CURRICULO_DIR=${CURRICULO_DIR:-$SHARE/curriculo}
-CURRICULO_BIN=${CURRICULO_BIN:-/usr/local/bin/curriculo}
-CURRICULO_PY=${CURRICULO_PY:-/opt/docente-py/bin/python}
-install -D -m644 "$FILES/curriculo/primaria-madrid.json" "$CURRICULO_DIR/primaria-madrid.json"
-install -D -m644 "$FILES/curriculo/curriculo.py" "$CURRICULO_DIR/curriculo.py"
-install -d "$(dirname "$CURRICULO_BIN")"
-printf '#!/bin/sh\nexec %s %s "$@"\n' "$CURRICULO_PY" "$CURRICULO_DIR/curriculo.py" > "$CURRICULO_BIN"
-chmod 755 "$CURRICULO_BIN"
-# Una vista legible por área (todos los ciclos), para abrirla directamente
-rm -f "$CURRICULO_DIR"/*.md
-"$CURRICULO_PY" -I -c '
+NORMATIVA_DIR=${NORMATIVA_DIR:-$SHARE/normativa}
+NORMATIVA_BIN=${NORMATIVA_BIN:-/usr/local/bin/normativa-madrid}
+NORMATIVA_PY=${NORMATIVA_PY:-/opt/docente-py/bin/python}
+NORMATIVA_WHEEL_URL=${NORMATIVA_WHEEL_URL:-https://github.com/balejosg/normativa-madrid/releases/download/v0.1.0/normativa_madrid-0.1.0-py3-none-any.whl}
+NORMATIVA_WHEEL_SHA256=${NORMATIVA_WHEEL_SHA256:-09185b3b1920e8f85f3795f02c4525f06ba8e1aa299c72a3cf96d742854a4609}
+tmp=$(mktemp -d)
+wheel="$tmp/${NORMATIVA_WHEEL_URL##*/}"   # pip exige el nombre original del wheel
+curl -fsSL -o "$wheel" "$NORMATIVA_WHEEL_URL"
+echo "$NORMATIVA_WHEEL_SHA256  $wheel" | sha256sum -c -
+"$NORMATIVA_PY" -m pip install --no-cache-dir "$wheel"
+rm -rf "$tmp"
+install -d "$(dirname "$NORMATIVA_BIN")"
+ln -sf "$(dirname "$NORMATIVA_PY")/normativa-madrid" "$NORMATIVA_BIN"
+# Una vista legible por ficha del catálogo (todas las etapas), para abrirla directamente.
+# Nombre: «<código> - <nombre>.md» (hay nombres repetidos, el código los distingue).
+rm -rf "$NORMATIVA_DIR"
+install -d "$NORMATIVA_DIR"
+"$NORMATIVA_BIN" catalogo | "$NORMATIVA_PY" -I -c '
 import json, sys
-for a in json.load(open(sys.argv[1], encoding="utf-8"))["areas"]:
-    print(a["codigo"] + "\t" + a["nombre"])
-' "$CURRICULO_DIR/primaria-madrid.json" | while IFS=$'\t' read -r codigo nombre; do
-  "$CURRICULO_BIN" ver "$codigo" --tipo todo > "$CURRICULO_DIR/${nombre//:/ -}.md"
-done
-chmod -R a+rX "$CURRICULO_DIR"
+for f in json.load(sys.stdin)["fichas"]:
+    print(f["codigo"] + "\t" + f["nombre"])
+' > "$NORMATIVA_DIR/.fichas"
+while IFS=$'\t' read -r codigo nombre; do
+  nombre=${nombre//\//-}; nombre=${nombre//:/ -}
+  "$NORMATIVA_BIN" ficha "$codigo" --formato md > "$NORMATIVA_DIR/$codigo - $nombre.md"
+done < "$NORMATIVA_DIR/.fichas"
+rm -f "$NORMATIVA_DIR/.fichas"
+chmod -R a+rX "$NORMATIVA_DIR"

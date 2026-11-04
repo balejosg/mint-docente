@@ -29,7 +29,7 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | OCR | ocrmypdf + tesseract (spa, cat, glg, eus, eng) |
 | Fórmulas | Typst 0.15, TeX Live (recommended, extra, xetex, español) |
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
-| Currículo | Primaria de la Comunidad de Madrid (Decreto 61/2022): competencias, criterios y contenidos por área y ciclo, en `/usr/share/mint-docente/curriculo/` (JSON, una vista `.md` por área y la orden `curriculo` para consultarlo, buscar y comprobar códigos). ESO y Bachillerato aún no |
+| Normativa de Madrid | Paquete `normativa-madrid` 0.1.0 (wheel con sha256) instalado en `/opt/docente-py`, con la orden `normativa-madrid` para consultar, buscar y comprobar códigos sin Internet. Cobertura: Primaria completa; solo algunas materias de ESO y Bachillerato (computación y digitalización); FP (DAM y módulos de especialización). Una vista `.md` por ficha del catálogo en `/usr/share/mint-docente/normativa/` |
 | OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 6 skills en español en `/usr/share/mint-docente/` |
 
 Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
@@ -44,7 +44,7 @@ VER=1 ./build.sh    # igual, pero mostrando la VM
 DEPURAR=1 ./build.sh  # si falla, deja la VM encendida para inspeccionarla
 ```
 
-Antes de Packer, `build.sh` ejecuta en el anfitrión las pruebas del currículo (`test/curriculo/`): con `.venv-dev/` (ver `requirements-dev.txt`) todas; sin él, solo `test_datos.py` y `test_cli.py`, que usan únicamente la biblioteca estándar. Si fallan, el build se detiene.
+Antes de Packer, `build.sh` comprueba en el anfitrión que `files/opencode/skills/normativa-madrid/SKILL.md` tiene el sha256 de `ORIGEN` (es una copia de la skill del paquete). Si no coincide, el build se detiene. `test/probar-normativa.sh` prueba el bloque de instalación de la normativa sin VM (con red): `mal-sha` como argumento debe fallar.
 
 Tarda unos 75 minutos: 12 de instalación y el resto de aprovisionamiento. Al final, `test/verificar.sh` comprueba dentro de la VM:
 - las conversiones, el OCR, Typst y las plantillas;
@@ -69,11 +69,9 @@ provision/20-opencode.sh    OpenCode (versión fijada con sha256), configuració
 provision/30-escritorio.sh  autoarranque, asistente, lanzadores, guía PDF
 provision/90-limpieza.sh    autologin, sin SSH ni credenciales, puesta a cero del disco
 files/                      configuración, skills, plantillas, scripts del escritorio
-files/curriculo/            primaria-madrid.json (datos, con URL y sha256 de las fuentes), curriculo.py (CLI), recuentos-esperados.json
-herramientas/extraer-curriculo.py  regenera el JSON desde los PDF oficiales (solo anfitrión)
-test/curriculo/            pruebas del JSON y de la CLI en el anfitrión
 test/verificar.sh           pruebas dentro de la VM
-docs/superpowers/          nota del spike, prompt y resultados de la revisión independiente del currículo
+test/probar-normativa.sh    prueba en el anfitrión el bloque de normativa-madrid (venv temporal)
+docs/superpowers/          notas históricas del currículo propio, ya sustituido por normativa-madrid
 ```
 
 ## Actualizar versiones
@@ -81,12 +79,7 @@ docs/superpowers/          nota del spike, prompt y resultados de la revisión i
 - **OpenCode:** `OPENCODE_VERSION` y `OPENCODE_DEB_SHA256` en `provision/20-opencode.sh`.
 - **Mint:** `ISO_URL`/`ISO_SHA256` en `build.sh` y `casper_uuid` en el `.pkr.hcl` (está en `isolinux/live.cfg` del ISO).
 - **Typst:** `TYPST_VERSION`/`TYPST_SHA256` en `provision/10-documentos.sh`.
-- **Currículo de Primaria (Madrid):** para regenerar `files/curriculo/primaria-madrid.json`:
-  1. Crea el entorno: `uv venv .venv-dev && uv pip install -r requirements-dev.txt --python .venv-dev/bin/python`.
-  2. Ejecuta el extractor, que descarga los PDF a `cache/fuentes` y comprueba su sha256: `.venv-dev/bin/python -I herramientas/extraer-curriculo.py --fuentes cache/fuentes --salida files/curriculo/primaria-madrid.json`. Lee los avisos que imprime.
-  3. Compara los recuentos con `files/curriculo/recuentos-esperados.json` (los comprueba `test/curriculo/test_datos.py`); si cambian por una norma nueva, actualiza ese archivo a mano tras contarlos en el boletín.
-  4. Pasa la revisión independiente: un agente nuevo, sin ver el extractor, usa el prompt de `docs/superpowers/prompts/revision-curriculo.md` para cotejar cada área con el PDF y escribe su informe en `docs/superpowers/revisiones/` (resumen en `RESUMEN.md`). Hasta que las áreas estén aprobadas no se da el JSON por bueno.
-  5. Ejecuta `.venv-dev/bin/python -m unittest discover -s test/curriculo`.
+- **Normativa de Madrid:** los datos y el código viven en el repositorio del paquete (`normativa-madrid`), no aquí. Para subir de versión: publica la release en ese repositorio, y aquí cambia la URL y `NORMATIVA_WHEEL_SHA256` en `provision/20-opencode.sh` (y el número de versión en su título), copia `skill/normativa-madrid/SKILL.md` de la nueva etiqueta a `files/opencode/skills/normativa-madrid/` y actualiza la URL y el sha256 de `ORIGEN`. Después ejecuta `test/probar-normativa.sh` y revisa que la cobertura descrita en `README.md`, `files/GUIA-DOCENTE.md` y `AGENTS.md` coincide con `normativa-madrid catalogo`.
 
 ## Notas técnicas (aprendidas al construirla)
 

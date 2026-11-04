@@ -1,7 +1,0 @@
-# Dependencias de desarrollo en el anfitrión (no entran en la imagen).
-# Crear el entorno: python3 -m venv .venv-dev && .venv-dev/bin/pip install -r requirements-dev.txt
-# (sin python3-venv: uv venv .venv-dev && uv pip install --python .venv-dev -r requirements-dev.txt)
-pdfplumber==0.11.10
-markitdown[docx,pdf,xlsx]==0.1.9
-python-docx==1.2.0
-openpyxl==3.1.5

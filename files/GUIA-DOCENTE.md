@@ -32,9 +32,14 @@ El asistente guarda los documentos en tu carpeta **Aula** (está en el escritori
 
 # Currículo de Madrid
 
-Si das clase en Primaria en la Comunidad de Madrid, el asistente conoce el currículo oficial (competencias, criterios de evaluación, contenidos y perfil de salida) y lo cita tal cual en tus programaciones. Antes de entregarte un documento comprueba que todo lo que cita existe. Si usas criterios de tu libro de texto o de otra comunidad, te propondrá el equivalente de Madrid.
+Si das clase en la Comunidad de Madrid, el asistente consulta la normativa oficial (competencias, criterios de evaluación, contenidos, perfil de salida y requisitos de la programación) y la cita tal cual en tus programaciones. Antes de entregarte un documento comprueba que todo lo que cita existe. Si usas criterios de tu libro de texto o de otra comunidad, te propondrá el equivalente de Madrid.
 
-En **ESO y Bachillerato** todavía no tiene cargado el currículo: te preparará la programación, pero redactará las competencias y los criterios de forma genérica, sin códigos oficiales. Revísalos con el decreto antes de usarlos.
+Qué tiene cargado:
+- **Primaria:** todas las áreas, con sus competencias, criterios y contenidos por ciclo. Los contenidos de Primaria no tienen numeración oficial en el decreto: el asistente los cita por su bloque y su texto, sin darles un código como si fuera oficial.
+- **ESO y Bachillerato:** solo algunas materias, las de computación y digitalización (ESO: Ciencias de la Computación, Tecnología y Digitalización y Digitalización; Bachillerato: Ciencias de la Computación), además del perfil de salida y los requisitos de la programación.
+- **Formación Profesional:** el ciclo de Desarrollo de Aplicaciones Multiplataforma y algunos módulos de especialización.
+
+Si das una materia que no está, el asistente te lo dirá: te preparará la programación, pero redactará las competencias y los criterios de forma genérica, sin códigos oficiales. Revísalos con el decreto antes de usarlos.
 
 # Pasar archivos entre tu ordenador y esta máquina
 

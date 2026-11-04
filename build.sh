@@ -25,14 +25,11 @@ fi
 [ -e "salida/$NOMBRE.ova" ] && { echo "Ya existe salida/$NOMBRE.ova"; exit 1; }
 rm -rf salida/tmp
 
-echo "==> Pruebas del currículo (anfitrión)"
-if [ -x .venv-dev/bin/python ]; then
-  .venv-dev/bin/python -m unittest discover -s test/curriculo
-else
-  # Sin .venv-dev solo se ejecutan las pruebas que no necesitan módulos externos
-  python3 -I -m unittest discover -s test/curriculo -p 'test_datos.py'
-  python3 -I -m unittest discover -s test/curriculo -p 'test_cli.py'
-fi
+echo "==> Skill normativa-madrid (anfitrión)"
+SKILL=files/opencode/skills/normativa-madrid
+ESPERADO=$(awk '/^sha256:/ {print $2}' "$SKILL/ORIGEN")
+[ -n "$ESPERADO" ] && echo "$ESPERADO  $SKILL/SKILL.md" | sha256sum -c - \
+  || { echo "$SKILL/SKILL.md no coincide con el sha256 de ORIGEN (es una copia de normativa-madrid, ver README.md)"; exit 1; }
 
 cd packer
 ./generar-preseed.sh

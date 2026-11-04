@@ -8,7 +8,7 @@ description: Crear o revisar temarios, programaciones didácticas, unidades did�
 ## Antes de empezar
 Si no lo sabes ya, pregunta en una sola tanda:
 1. Etapa, curso y materia (p. ej. «3º ESO, Biología y Geología»).
-2. Comunidad autónoma, si quiere ajustarse al currículo oficial. Si la etapa es Primaria y la comunidad es Madrid, carga la skill `curriculo-madrid` y usa sus códigos.
+2. Comunidad autónoma, si quiere ajustarse al currículo oficial. Si la comunidad es Madrid (cualquier etapa), carga la skill `normativa-madrid`, mira qué hay con `normativa-madrid catalogo` y usa sus códigos.
 3. Qué necesita: temario breve (índice de unidades), programación completa o una unidad o situación de aprendizaje concreta.
 4. Número de sesiones o semanas disponibles, y formato de entrega (por defecto .docx + .pdf).
 
@@ -28,7 +28,7 @@ Para cada **unidad didáctica / situación de aprendizaje**:
 
 El **temario breve** es una tabla: Unidad | Título | Contenidos clave | Sesiones | Trimestre.
 
-**No inventes códigos de criterios** oficiales. Si no tienes el currículo, redáctalos de forma genérica y avisa al docente de que debe revisarlos con el decreto de su comunidad. Ahora mismo eso incluye la **ESO y el Bachillerato de Madrid**: su currículo no está cargado en la máquina.
+**No inventes códigos de criterios** oficiales. Si no tienes el currículo, redáctalos de forma genérica y avisa al docente de que debe revisarlos con el decreto de su comunidad. En Madrid eso ocurre solo con las materias que `normativa-madrid catalogo` no lista (en ESO y Bachillerato están únicamente algunas, relacionadas con computación y digitalización). Antes de entregar una programación de Madrid, pásala por `normativa-madrid comprobar`.
 
 ## Producción del documento
 1. Parte de `/usr/share/mint-docente/plantillas/temario.docx`, o de la plantilla del docente si aporta una.
