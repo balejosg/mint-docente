@@ -36,7 +36,11 @@ prueba "docente en vboxsf"              "id -nG | grep -qw vboxsf"
 prueba "Carpeta de trabajo vacía"       "D=\$(xdg-user-dir DOCUMENTS)/'Proyecto predeterminado'; test -d \"\$D\" && test -z \"\$(ls -A \"\$D\")\""
 prueba "Icono Aula → carpeta de trabajo" "test \"\$(readlink -f \"\$(xdg-user-dir DESKTOP)/Aula\")\" = \"\$(xdg-user-dir DOCUMENTS)/Proyecto predeterminado\""
 prueba "Autoarranque configurado"       "test -r ~/.config/autostart/mint-docente-inicio.desktop"
-prueba "Sin credenciales de IA"         "! opencode auth list 2>/dev/null | grep -qiE 'copilot|anthropic|openai|openrouter'"
+prueba "GitHub CLI"                     "gh --version"
+prueba "Sin credenciales de GitHub"     "! gh auth status >/dev/null 2>&1 && test ! -e ~/.config/gh/hosts.yml"
+prueba "Lanzador Conectar GitHub"       "test -r /usr/share/applications/conectar-github.desktop"
+prueba "Sin icono de GitHub en el escritorio" "test ! -e \"\$(xdg-user-dir DESKTOP)/conectar-github.desktop\""
+prueba "Sin credenciales de IA"        "! opencode auth list 2>/dev/null | grep -qiE 'copilot|anthropic|openai|openrouter'"
 
 if [ $FALLOS -gt 0 ]; then
   echo "== $FALLOS prueba(s) fallida(s). Registro:"; tail -n 80 "$T/log"

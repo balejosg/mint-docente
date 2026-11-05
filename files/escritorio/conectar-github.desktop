@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Conectar GitHub para compartir
+Comment=Compartir materiales con otros docentes (opcional)
+Exec=/usr/local/bin/mint-docente-github
+Icon=folder-publicshare
+Terminal=false
+Categories=Office;Education;Settings;

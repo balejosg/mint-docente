@@ -1,0 +1,58 @@
+# Inicio de sesión en GitHub con código (flujo de dispositivo), sin terminal.
+# Lo usan mint-docente-asistente (Copilot) y mint-docente-github (compartir).
+# Se carga con: . /usr/local/lib/mint-docente/ventana-codigo
+
+# leer_codigo <log> <pid>: espera hasta 30 s a que el proceso escriba el
+# código XXXX-XXXX en el registro y lo imprime. Falla si no llega.
+leer_codigo() {
+  local log="$1" pid="$2" code i
+  for i in $(seq 60); do
+    code=$(grep -aoE 'code: [A-Z0-9]{4}-[A-Z0-9]{4}' "$log" | head -1 | cut -d' ' -f2)
+    [ -n "$code" ] && { echo "$code"; return 0; }
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  return 1
+}
+
+# error_sin_red <titulo>
+error_sin_red() {
+  zenity --error --title="$1" --width=420 --text=\
+"No se ha podido contactar con GitHub.\n\nComprueba que hay conexión a Internet e inténtalo de nuevo."
+}
+
+# mostrar_codigo <titulo> <codigo> <pid>: copia el código, abre el navegador
+# en github.com/login/device y muestra el código hasta que el proceso termina
+# (0) o el docente cancela (1; el proceso se abandona).
+mostrar_codigo() {
+  local titulo="$1" code="$2" pid="$3" zp
+  printf '%s' "$code" | xclip -selection clipboard 2>/dev/null
+  if command -v firefox >/dev/null; then
+    firefox --new-window https://github.com/login/device >/dev/null 2>&1 &
+  else
+    xdg-open https://github.com/login/device >/dev/null 2>&1 &
+  fi
+  # Que la ventana del código quede por encima del navegador.
+  ( sleep 3; wmctrl -r "$titulo" -b add,above ) &
+  # Ventana con el código. Lee de un descriptor que controlamos: al cerrarlo
+  # (fin de la entrada) se cierra sola. No se le envía nada: cualquier línea
+  # "#…" sustituiría el texto.
+  exec 3> >(zenity --progress --pulsate --auto-close --title="$titulo" \
+    --width=520 --cancel-label="Cancelar" --text=\
+"<big>Tu código es:  <b><tt>$code</tt></b></big>   (ya está copiado)
+
+1. En el navegador que se acaba de abrir, inicia sesión en <b>GitHub</b>
+    con tu cuenta de docente.
+2. Pega el código (Ctrl+V) y pulsa <b>Continue</b> y luego <b>Authorize</b>.
+3. Vuelve aquí: esta ventana se cerrará sola.
+
+Si el navegador no se abre, entra en <b>github.com/login/device</b>")
+  zp=$!
+  # Esperar a que GitHub confirme (termina el login) o a que se cancele la ventana.
+  while kill -0 "$pid" 2>/dev/null && kill -0 "$zp" 2>/dev/null; do sleep 1; done
+  exec 3>&-                                   # cierra la ventana si sigue abierta
+  if kill -0 "$pid" 2>/dev/null; then         # cancelado: abandonar el login
+    kill "$pid"; wait "$pid" 2>/dev/null; return 1
+  fi
+  wait "$pid" 2>/dev/null
+}

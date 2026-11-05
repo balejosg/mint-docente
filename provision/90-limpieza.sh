@@ -15,10 +15,11 @@ rm -f /etc/systemd/system/packer-ssh.service /etc/systemd/system/multi-user.targ
 systemctl disable ssh.service ssh.socket 2>/dev/null || true
 rm -f /etc/ssh/ssh_host_*
 
-log "Comprobar que no queda ninguna credencial de IA"
+log "Comprobar que no queda ninguna credencial de IA ni de GitHub"
 rm -rf "$DOCENTE_HOME/.local/share/opencode" "$DOCENTE_HOME/.local/state/opencode" \
        "$DOCENTE_HOME/.config/mint-docente" "$DOCENTE_HOME/.cache/opencode" \
        "$DOCENTE_HOME/.config/ai.opencode.desktop" \
+       "$DOCENTE_HOME/.config/gh" "$DOCENTE_HOME/.local/share/keyrings" \
        "$DOCENTE_HOME/.mozilla"   # primer arranque limpio: OpenCode abre su carpeta, Firefox sin pestañas viejas
 
 log "Restos de paquetes, registros e historial"

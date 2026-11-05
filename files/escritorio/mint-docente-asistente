@@ -9,52 +9,19 @@ pgrep -f /opt/OpenCode/ai.opencode >/dev/null && \
   AVISO="\n\nCierra OpenCode y vuelve a abrirlo para usar la nueva cuenta."
 
 # GitHub Copilot: inicio de sesión con código, sin terminal.
+. /usr/local/lib/mint-docente/ventana-codigo
 copilot() {
-  local log pid code i
+  local log pid code
   log=$(mktemp)
   opencode auth login github-copilot --method device \
     --answer deploymentType=github.com >"$log" 2>&1 &
   pid=$!
-  for i in $(seq 60); do   # hasta 30 s para recibir el código de GitHub
-    code=$(grep -aoE 'code: [A-Z0-9]{4}-[A-Z0-9]{4}' "$log" | head -1 | cut -d' ' -f2)
-    [ -n "$code" ] && break
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.5
-  done
-  if [ -z "$code" ]; then
+  if ! code=$(leer_codigo "$log" "$pid"); then
     kill "$pid" 2>/dev/null; rm -f "$log"
-    zenity --error --title="$TITULO" --width=420 --text=\
-"No se ha podido contactar con GitHub.\n\nComprueba que hay conexión a Internet e inténtalo de nuevo."
+    error_sin_red "$TITULO"
     return 1
   fi
-  printf '%s' "$code" | xclip -selection clipboard 2>/dev/null
-  if command -v firefox >/dev/null; then
-    firefox --new-window https://github.com/login/device >/dev/null 2>&1 &
-  else
-    xdg-open https://github.com/login/device >/dev/null 2>&1 &
-  fi
-  # Que la ventana del código quede por encima del navegador.
-  ( sleep 3; wmctrl -r "GitHub Copilot" -b add,above ) &
-  # Ventana con el código. Lee de un descriptor que controlamos: al cerrarlo
-  # (fin de la entrada) se cierra sola. No se le envía nada: cualquier línea
-  # "#…" sustituiría el texto.
-  local zp
-  exec 3> >(zenity --progress --pulsate --auto-close --title="$TITULO — GitHub Copilot" \
-    --width=520 --cancel-label="Cancelar" --text=\
-"<big>Tu código es:  <b><tt>$code</tt></b></big>   (ya está copiado)
-
-1. En el navegador que se acaba de abrir, inicia sesión en <b>GitHub</b>
-    con tu cuenta de docente.
-2. Pega el código (Ctrl+V) y pulsa <b>Continue</b> y luego <b>Authorize</b>.
-3. Vuelve aquí: esta ventana se cerrará sola.
-
-Si el navegador no se abre, entra en <b>github.com/login/device</b>")
-  zp=$!
-  # Esperar a que GitHub confirme (termina el login) o a que se cancele la ventana.
-  while kill -0 "$pid" 2>/dev/null && kill -0 "$zp" 2>/dev/null; do sleep 1; done
-  exec 3>&-                                   # cierra la ventana si sigue abierta
-  kill -0 "$pid" 2>/dev/null && kill "$pid"   # cancelado: abandonar el login
-  wait "$pid" 2>/dev/null
+  mostrar_codigo "$TITULO — GitHub Copilot" "$code" "$pid"
   rm -f "$log"
 }
 

@@ -1,0 +1,37 @@
+#!/bin/bash
+# Conecta GitHub para compartir materiales con compañeros (opcional).
+# Se abre desde el menú («Conectar GitHub para compartir») o lo lanza el
+# agente la primera vez que el docente pide compartir algo.
+# Sale con 0 si la sesión queda iniciada y con 1 si se cancela o falla.
+TITULO="Mint Docente — Compartir con compañeros"
+. /usr/local/lib/mint-docente/ventana-codigo
+export GH_NO_UPDATE_NOTIFIER=1 GH_PROMPT_DISABLED=1
+
+if gh auth status -h github.com >/dev/null 2>&1; then
+  usuario=$(gh api user --jq .login 2>/dev/null)
+  zenity --question --title="$TITULO" --width=440 \
+    --ok-label="Seguir así" --cancel-label="Cambiar de cuenta" \
+    --text="Ya estás conectado a GitHub como <b>${usuario:-?}</b>." && exit 0
+  gh auth logout -h github.com >/dev/null 2>&1
+fi
+
+log=$(mktemp)
+# BROWSER=true: el navegador lo abre mostrar_codigo; la entrada vacía evita esperas.
+BROWSER=true gh auth login --hostname github.com --git-protocol https \
+  --web --scopes repo --skip-ssh-key </dev/null >"$log" 2>&1 &
+pid=$!
+if ! code=$(leer_codigo "$log" "$pid"); then
+  kill "$pid" 2>/dev/null; rm -f "$log"
+  error_sin_red "$TITULO"
+  exit 1
+fi
+mostrar_codigo "$TITULO" "$code" "$pid"
+rm -f "$log"
+
+if gh auth status -h github.com >/dev/null 2>&1; then
+  gh auth setup-git -h github.com >/dev/null 2>&1
+  zenity --info --title="$TITULO" --width=420 --text=\
+"<b>✔ Ya puedes compartir materiales.</b>\n\nPídeselo al asistente."
+  exit 0
+fi
+exit 1

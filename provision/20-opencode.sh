@@ -4,6 +4,8 @@
 
 OPENCODE_VERSION=2.2.5
 OPENCODE_DEB_SHA256=c827e714220de744c829fdea55540ed814b1372061e7a905fde0978f9f819de8
+GH_VERSION=2.103.3
+GH_DEB_SHA256=e3bafef96328d1a67de3a968bdfe1cc2ffd58cf6aba8b5e201356897ed06bb3d
 
 log "OpenCode Desktop $OPENCODE_VERSION"
 tmp=$(mktemp -d)
@@ -14,6 +16,14 @@ apt_get install "$tmp/opencode.deb"
 rm -rf "$tmp"
 # CLI incluida en el paquete (la usa el asistente de primer arranque)
 ln -sf /opt/OpenCode/resources/opencode-cli /usr/local/bin/opencode
+
+log "GitHub CLI $GH_VERSION (para compartir con compañeros; la sesión es opcional)"
+tmp=$(mktemp -d)
+curl -fsSL --retry 3 -o "$tmp/gh.deb" \
+  "https://github.com/cli/cli/releases/download/v$GH_VERSION/gh_${GH_VERSION}_linux_amd64.deb"
+echo "$GH_DEB_SHA256  $tmp/gh.deb" | sha256sum -c -
+apt_get install "$tmp/gh.deb"
+rm -rf "$tmp"
 
 log "Configuración del sistema (/etc/opencode) — prioridad máxima, sin credenciales"
 install -D -m644 "$FILES/opencode/opencode.jsonc" /etc/opencode/opencode.jsonc
