@@ -116,6 +116,7 @@ class TestSesionYCrear(Base):
         self.assertEqual(len(creates), 1)
         self.assertEqual(creates[0][2], "3o-eso-biologia")
         self.assertIn("--private", creates[0])
+        self.assertIn("Espacio compartido de Mint Docente: 3º ESO Biología", creates[0])
         self.assertIn(["repo", "edit", "ana/3o-eso-biologia", "--add-topic", "mint-docente"],
                       self.llamadas())
         self.assertIn(".~lock.*#", (carpeta / ".gitignore").read_text())
@@ -254,6 +255,136 @@ class TestSincronizar(Base):
         esp = {e["nombre"]: e for e in datos["espacios"]}
         self.assertEqual(esp["Fichas"]["pendientes"], 1)
         self.assertEqual(esp["Fichas"]["propietario"], "ana")
+
+
+class TestAcceso(Base):
+    def invitar_y_aceptar(self):
+        self.ok("ana", "crear", "Fichas")
+        self.ok("ana", "invitar", "Fichas", "luis")
+        inv = self.ok("luis", "invitaciones")
+        return self.ok("luis", "aceptar", str(inv[0]["id"]))
+
+    def test_invitar_y_quien(self):
+        self.ok("ana", "crear", "Fichas")
+        datos = self.ok("ana", "invitar", "Fichas", "luis")
+        self.assertEqual(datos, {"invitado": "luis", "estado": "pendiente"})
+        quien = self.ok("ana", "quien", "Fichas")
+        self.assertEqual(quien["propietario"], "ana")
+        self.assertEqual(quien["pendientes"], ["luis"])
+        self.assertEqual(quien["colaboradores"], [])
+
+    def test_invitar_usuario_inexistente(self):
+        self.ok("ana", "crear", "Fichas")
+        rc, _, err = self.compartir("ana", "invitar", "Fichas", "nadie")
+        self.assertEqual(rc, 1)
+        self.assertIn("No hay ningún usuario de GitHub llamado nadie", err)
+        self.assertFalse([a for a in self.llamadas() if "PUT" in a])
+
+    def test_invitar_con_correo(self):
+        self.ok("ana", "crear", "Fichas")
+        antes = len(self.llamadas())
+        rc, _, err = self.compartir("ana", "invitar", "Fichas", "luis@educa.madrid.org")
+        self.assertEqual(rc, 1)
+        self.assertIn("Necesito el nombre de usuario de GitHub, no el correo", err)
+        self.assertEqual(len(self.llamadas()), antes)
+
+    def test_invitar_sin_ser_propietario(self):
+        self.invitar_y_aceptar()
+        rc, _, err = self.compartir("luis", "invitar", "Fichas", "ana")
+        self.assertEqual(rc, 1)
+        self.assertIn("Solo ana puede invitar a este espacio", err)
+
+    def test_quitar_colaborador_y_pendiente(self):
+        self.invitar_y_aceptar()
+        self.assertEqual(self.ok("ana", "quien", "Fichas")["colaboradores"], ["luis"])
+        self.ok("ana", "quitar", "Fichas", "luis")
+        self.assertEqual(self.ok("ana", "quien", "Fichas")["colaboradores"], [])
+        # invitación pendiente
+        self.ok("ana", "invitar", "Fichas", "luis")
+        self.assertEqual(self.ok("ana", "quien", "Fichas")["pendientes"], ["luis"])
+        self.ok("ana", "quitar", "Fichas", "luis")
+        quien = self.ok("ana", "quien", "Fichas")
+        self.assertEqual(quien["pendientes"], [])
+        self.assertEqual(quien["colaboradores"], [])
+
+    def test_aceptar_clona(self):
+        self.ok("ana", "crear", "Fichas")
+        self.ok("ana", "invitar", "Fichas", "luis")
+        # Una invitación a un repositorio que no es de Mint Docente no aparece.
+        estado = json.loads((self.tmp / "estado-gh" / "estado.json").read_text())
+        estado["repos"]["ana/otro"] = {"topics": [], "colaboradores": [], "descripcion": "Otro"}
+        estado["invitaciones"].append({"id": 99, "repo": "ana/otro", "invitado": "luis", "de": "ana"})
+        (self.tmp / "estado-gh" / "estado.json").write_text(json.dumps(estado))
+        inv = self.ok("luis", "invitaciones")
+        self.assertEqual(len(inv), 1)
+        self.assertEqual(inv[0]["espacio"], "Fichas")
+        self.assertEqual(inv[0]["de"], "ana")
+        datos = self.ok("luis", "aceptar", str(inv[0]["id"]))
+        carpeta = self.raiz("luis") / datos["espacio"]
+        self.assertTrue((carpeta / ".gitignore").is_file())
+        self.assertIn("+luis@users.noreply.github.com", self.git(carpeta, "config", "user.email"))
+        # Y puede guardar.
+        (carpeta / "de-luis.md").write_text("hola\n")
+        self.ok("luis", "guardar", datos["espacio"], "hola")
+        self.ok("ana", "traer", "Fichas")
+        self.assertTrue((self.raiz("ana") / "Fichas" / "de-luis.md").is_file())
+
+
+SKILL = """---
+name: rubricas-fp
+description: Rúbricas para FP
+---
+
+Versión {}
+"""
+
+
+class TestSkills(Base):
+    def test_usar_copia_fija_y_aviso_de_novedad(self):
+        ana, luis = self.espacio_compartido()
+        (ana / "skills" / "rubricas-fp").mkdir(parents=True)
+        (ana / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(1))
+        self.ok("ana", "guardar", "Fichas", "skill")
+        self.ok("luis", "traer", "Fichas")
+        datos = self.ok("luis", "usar", "Fichas", "skills/rubricas-fp")
+        self.assertEqual(datos["skill"], "rubricas-fp")
+        copia = self.skills("luis") / "rubricas-fp"
+        self.assertFalse(copia.is_symlink())
+        self.assertIn("Versión 1", (copia / "SKILL.md").read_text())
+        self.assertTrue((copia / ".origen").is_file())
+        # ana la cambia
+        (ana / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(2))
+        self.ok("ana", "guardar", "Fichas", "skill v2")
+        datos = self.ok("luis", "traer", "Fichas")
+        self.assertEqual(datos["espacios"][0]["skills_con_novedades"], ["rubricas-fp"])
+        self.assertIn("Versión 1", (copia / "SKILL.md").read_text())
+        lista = self.ok("luis", "skills")
+        self.assertEqual([(s["skill"], s["espacio"], s["hay_nueva"]) for s in lista],
+                         [("rubricas-fp", "Fichas", True)])
+        self.ok("luis", "usar", "Fichas", "skills/rubricas-fp")
+        self.assertIn("Versión 2", (copia / "SKILL.md").read_text())
+        self.assertFalse(self.ok("luis", "skills")[0]["hay_nueva"])
+
+    def test_usar_sin_frontmatter(self):
+        ana, _ = self.espacio_compartido()
+        (ana / "mala").mkdir()
+        (ana / "mala" / "SKILL.md").write_text("Sin frontmatter\n")
+        rc, _, err = self.compartir("ana", "usar", "Fichas", "mala")
+        self.assertEqual(rc, 1)
+        self.assertIn("no es una skill válida", err)
+        self.assertFalse(self.skills("ana").exists() and any(self.skills("ana").iterdir()))
+
+    def test_usar_nombre_ocupado(self):
+        ana, _ = self.espacio_compartido()
+        (ana / "skills" / "rubricas-fp").mkdir(parents=True)
+        (ana / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(1))
+        propia = self.skills("ana") / "rubricas-fp"
+        propia.mkdir(parents=True)
+        (propia / "SKILL.md").write_text("mía\n")
+        rc, _, err = self.compartir("ana", "usar", "Fichas", "skills/rubricas-fp")
+        self.assertEqual(rc, 1)
+        self.assertIn("Ya usas otra skill llamada rubricas-fp", err)
+        self.assertEqual((propia / "SKILL.md").read_text(), "mía\n")
 
 
 if __name__ == "__main__":

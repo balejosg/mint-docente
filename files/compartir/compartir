@@ -36,6 +36,17 @@ MENSAJES = {
              "espacio podría usarla a tu costa. Muévela a un archivo .env (no se comparte).",
     "github": "GitHub ha respondido con un error: {}",
     "git": "No he podido completar la operación: {}",
+    "correo": "Necesito el nombre de usuario de GitHub, no el correo. Tu compañero lo ve "
+              "en su perfil de github.com (o pidiéndoselo a su asistente).",
+    "usuario_raro": "«{}» no parece un nombre de usuario de GitHub.",
+    "usuario_no_existe": "No hay ningún usuario de GitHub llamado {}; pídele a tu compañero "
+                         "su nombre de usuario.",
+    "solo_propietario": "Solo {} puede {} a este espacio.",
+    "sin_acceso": "{} no tiene acceso a este espacio.",
+    "invitacion_no_existe": "No encuentro esa invitación. Pide la lista de invitaciones de nuevo.",
+    "skill_invalida": "«{}» no es una skill válida: necesita un SKILL.md que empiece con "
+                      "--- name: … description: … ---.",
+    "skill_ocupada": "Ya usas otra skill llamada {}. No la sustituyo.",
     "uso": "Uso: compartir estado | crear <nombre> | invitar <espacio> <usuario> | "
            "quitar <espacio> <usuario> | quien <espacio> | invitaciones | aceptar <id> | "
            "traer [<espacio>] | guardar <espacio> <descripción> | usar <espacio> <ruta-skill> | skills",
@@ -303,6 +314,63 @@ def comprobar_salientes(esp: Espacio) -> None:
                 raise Error(MENSAJES["clave"].format(f"{archivo}:{n}"))
 
 
+def skills_dir() -> Path:
+    return Path(os.environ.get("COMPARTIR_SKILLS", Path.home() / ".config" / "opencode" / "skills"))
+
+
+def leer_frontmatter(skill_md: Path) -> dict:
+    try:
+        texto = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}
+    m = re.match(r"---\s*\n(.*?)\n---\s*(\n|$)", texto, re.S)
+    if not m:
+        return {}
+    campos = {}
+    for linea in m.group(1).splitlines():
+        if ":" in linea and not linea.startswith((" ", "\t")):
+            k, v = linea.split(":", 1)
+            campos[k.strip()] = v.strip().strip("'\"")
+    return campos
+
+
+def version_skill(esp: Espacio, ruta: str) -> str:
+    r = git(esp.ruta, "rev-parse", "-q", "--verify", f"HEAD:{ruta}", comprobar=False)
+    return r.stdout.strip() or "sin-guardar"
+
+
+def skills_en_uso() -> list[tuple[Path, dict]]:
+    d = skills_dir()
+    if not d.is_dir():
+        return []
+    res = []
+    for p in sorted(d.iterdir()):
+        origen = p / ".origen"
+        if origen.is_file():
+            try:
+                res.append((p, json.loads(origen.read_text())))
+            except json.JSONDecodeError:
+                pass
+    return res
+
+
+def novedades_skills(esp: Espacio) -> list[str]:
+    return [p.name for p, o in skills_en_uso()
+            if o.get("espacio") == esp.nombre and version_skill(esp, o["ruta"]) != o.get("version")]
+
+
+def validar_usuario(u: str) -> None:
+    if "@" in u:
+        raise Error(MENSAJES["correo"])
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", u):
+        raise Error(MENSAJES["usuario_raro"].format(u))
+
+
+def exigir_propietario(esp: Espacio, accion: str) -> None:
+    if yo()["login"].lower() != esp.propietario.lower():
+        raise Error(MENSAJES["solo_propietario"].format(esp.propietario, accion))
+
+
 # ---------------------------------------------------------------- órdenes
 def cmd_estado(args):
     usuario = yo()["login"]
@@ -331,7 +399,7 @@ def cmd_crear(args):
         raise Error(MENSAJES["ya_existe"].format(nombre))
     usuario = yo()
     try:
-        gh(["repo", "create", s, "--private", "--description", DESCRIPCION_REPO])
+        gh(["repo", "create", s, "--private", "--description", f"{DESCRIPCION_REPO}: {nombre}"])
     except ErrorGitHub as e:
         if "already exists" in str(e):
             raise Error(MENSAJES["ya_existe_github"].format(s))
@@ -394,7 +462,7 @@ def traer_uno(esp: Espacio) -> dict:
         git(esp.ruta, "commit", "-q", "-m", "Cambios locales antes de traer")
     fetch(esp)
     res = mezclar(esp)
-    return {"nombre": esp.nombre, **res}
+    return {"nombre": esp.nombre, **res, "skills_con_novedades": novedades_skills(esp)}
 
 
 def cmd_traer(args):
@@ -402,7 +470,139 @@ def cmd_traer(args):
     salida({"espacios": [traer_uno(e) for e in lista]})
 
 
+def cmd_invitar(args):
+    if len(args) != 2:
+        raise Error(MENSAJES["uso"])
+    esp, usuario = espacio(args[0]), args[1].strip()
+    validar_usuario(usuario)
+    exigir_propietario(esp, "invitar")
+    try:
+        gh(["api", f"users/{usuario}"])
+    except ErrorGitHub as e:
+        if http_estado(e) == 404:
+            raise Error(MENSAJES["usuario_no_existe"].format(usuario))
+        raise
+    gh(["api", "-X", "PUT", f"repos/{esp.completo}/collaborators/{usuario}"])
+    salida({"invitado": usuario, "estado": "pendiente"})
+
+
+def cmd_quitar(args):
+    if len(args) != 2:
+        raise Error(MENSAJES["uso"])
+    esp, usuario = espacio(args[0]), args[1].strip()
+    validar_usuario(usuario)
+    exigir_propietario(esp, "quitar el acceso")
+    try:
+        gh(["api", "-X", "DELETE", f"repos/{esp.completo}/collaborators/{usuario}"])
+    except ErrorGitHub as e:
+        if http_estado(e) != 404:
+            raise
+    invitaciones = gh_json(["api", f"repos/{esp.completo}/invitations"]) or []
+    pendientes = [i for i in invitaciones if i["invitee"]["login"].lower() == usuario.lower()]
+    for i in pendientes:
+        gh(["api", "-X", "DELETE", f"repos/{esp.completo}/invitations/{i['id']}"])
+    salida({"quitado": usuario})
+
+
+def cmd_quien(args):
+    if len(args) != 1:
+        raise Error(MENSAJES["uso"])
+    esp = espacio(args[0])
+    colaboradores = gh_json(["api", f"repos/{esp.completo}/collaborators"]) or []
+    try:
+        invitaciones = gh_json(["api", f"repos/{esp.completo}/invitations"]) or []
+    except ErrorGitHub:
+        invitaciones = []                            # solo el propietario las ve
+    salida({"propietario": esp.propietario,
+            "colaboradores": sorted(c["login"] for c in colaboradores
+                                    if c["login"].lower() != esp.propietario.lower()),
+            "pendientes": sorted(i["invitee"]["login"] for i in invitaciones)})
+
+
+def invitaciones_recibidas() -> list[dict]:
+    lista = gh_json(["api", "user/repository_invitations"]) or []
+    return [i for i in lista
+            if (i["repository"].get("description") or "").startswith(DESCRIPCION_REPO)]
+
+
+def nombre_espacio(repo: dict) -> str:
+    """Nombre legible del espacio: el que se le dio al crearlo (va en la descripción)."""
+    desc = repo.get("description") or ""
+    nombre = desc.removeprefix(DESCRIPCION_REPO).lstrip(": ").strip()
+    nombre = re.sub(r"[/\\\0]", "-", nombre).strip(". ")
+    return nombre or repo["name"]
+
+
+def cmd_invitaciones(args):
+    salida([{"id": i["id"], "espacio": nombre_espacio(i["repository"]), "de": i["inviter"]["login"]}
+            for i in invitaciones_recibidas()])
+
+
+def cmd_aceptar(args):
+    if len(args) != 1 or not args[0].isdigit():
+        raise Error(MENSAJES["uso"])
+    inv = next((i for i in invitaciones_recibidas() if str(i["id"]) == args[0]), None)
+    if inv is None:
+        raise Error(MENSAJES["invitacion_no_existe"])
+    gh(["api", "-X", "PATCH", f"user/repository_invitations/{inv['id']}"])
+    repo = inv["repository"]
+    propietario = repo["owner"]["login"]
+    nombre = nombre_espacio(repo)
+    if (raiz() / nombre).exists():
+        nombre = f"{nombre} (de {propietario})"
+    clonar(propietario, repo["name"], raiz() / nombre, yo())
+    salida({"espacio": nombre})
+
+
+def cmd_usar(args):
+    if len(args) != 2:
+        raise Error(MENSAJES["uso"])
+    esp = espacio(args[0])
+    ruta = args[1].strip().strip("/")
+    origen_dir = esp.ruta / ruta
+    campos = leer_frontmatter(origen_dir / "SKILL.md")
+    nombre = campos.get("name", "")
+    if not campos.get("description") or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", nombre) \
+            or not origen_dir.resolve().is_relative_to(esp.ruta.resolve()):
+        raise Error(MENSAJES["skill_invalida"].format(ruta))
+    destino = skills_dir() / nombre
+    if destino.exists() or destino.is_symlink():
+        try:
+            previo = json.loads((destino / ".origen").read_text())
+        except (OSError, json.JSONDecodeError):
+            previo = {}
+        if previo.get("espacio") != esp.nombre or previo.get("ruta") != ruta:
+            raise Error(MENSAJES["skill_ocupada"].format(nombre))
+        shutil.rmtree(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(origen_dir, destino, symlinks=False,
+                    ignore=shutil.ignore_patterns(".git", ".origen"))
+    version = version_skill(esp, ruta)
+    (destino / ".origen").write_text(json.dumps(
+        {"espacio": esp.nombre, "ruta": ruta, "version": version}, ensure_ascii=False))
+    salida({"skill": nombre, "origen": f"{esp.nombre}/{ruta}", "version": version})
+
+
+def cmd_skills(args):
+    lista = []
+    for p, o in skills_en_uso():
+        try:
+            hay_nueva = version_skill(espacio(o["espacio"]), o["ruta"]) != o.get("version")
+        except Error:
+            hay_nueva = False
+        lista.append({"skill": p.name, "espacio": o.get("espacio"),
+                      "version": o.get("version"), "hay_nueva": hay_nueva})
+    salida(lista)
+
+
 ORDENES = {
+    "invitar": cmd_invitar,
+    "quitar": cmd_quitar,
+    "quien": cmd_quien,
+    "invitaciones": cmd_invitaciones,
+    "aceptar": cmd_aceptar,
+    "usar": cmd_usar,
+    "skills": cmd_skills,
     "estado": cmd_estado,
     "crear": cmd_crear,
     "traer": cmd_traer,
