@@ -74,6 +74,19 @@ Puedes compartir con otros docentes tus **aplicaciones, skills, instrucciones (A
 - **Claves** (de una IA, de un servicio): no se comparten. Si una aplicación lleva una, el asistente no la sube y te propone cómo apartarla; cada uno pone la suya.
 - **No compartas datos del alumnado.** El asistente revisa los archivos antes de subirlos y te avisará, pero la responsabilidad es tuya.
 
+# Si trabajas en un ordenador del centro
+
+En muchos centros, el ordenador se borra al cerrar la sesión. Para no perder nada, guarda tu trabajo en tu cuenta de GitHub antes de irte y tráelo la próxima vez, en ese equipo o en otro. Solo lo ves tú. Necesitas tener GitHub conectado (menú → **Conectar GitHub para compartir**).
+
+- **«Guarda mi trabajo».** El asistente guarda toda tu carpeta **Aula** y tus skills. Antes revisa los archivos y te avisa si ve datos del alumnado: solo los guarda si le das permiso. El asistente nunca guarda por su cuenta; al terminar cada encargo te lo recuerda.
+- **«Trae mi trabajo».** En un equipo nuevo, el asistente recupera tu Aula, tus espacios compartidos y las skills que usabas. Si el Aula está vacía al empezar, él mismo te lo ofrece. Si en ese equipo ya tenías algo distinto, no se pierde: te enseña las dos versiones.
+- **Desconectar mis cuentas.** Si el equipo lo va a usar otra persona, al irte usa menú → **Desconectar mis cuentas** (o díselo al asistente: «guarda mi trabajo, que me voy»). Cierra tus sesiones de Copilot y de GitHub en esa máquina.
+
+**Ten en cuenta:**
+
+- Los archivos de más de 95 MB (vídeos, por ejemplo) no se guardan. El asistente te los nombra: cópialos a **Intercambio** antes de irte.
+- No se guardan las conversaciones con el asistente, solo tus archivos.
+
 # Otros programas útiles
 
 - **LibreOffice** para abrir y retocar los documentos.

@@ -1,6 +1,6 @@
 ---
 name: compartir
-description: Compartir materiales con otros docentes (aplicaciones, skills, AGENTS.md, documentos) — crear un espacio compartido, invitar o quitar compañeros, ver quién tiene acceso, aceptar invitaciones, traer lo último, guardar los cambios en lo compartido y usar skills de compañeros. Úsala cuando el docente quiera compartir o colaborar con compañeros.
+description: Compartir materiales con otros docentes (aplicaciones, skills, AGENTS.md, documentos) — crear un espacio compartido, invitar o quitar compañeros, ver quién tiene acceso, aceptar invitaciones, traer lo último, guardar los cambios en lo compartido y usar skills de compañeros. También guarda y trae «Mi trabajo» (toda la carpeta de trabajo) para seguir en otro equipo. Úsala cuando el docente quiera compartir o colaborar con compañeros, o diga «guarda mi trabajo», «trae mi trabajo» o que se va.
 ---
 
 # Compartir con compañeros
@@ -28,6 +28,9 @@ Ejecuta `compartir estado`.
 | «Guarda en lo compartido» | `compartir guardar "<nombre>" "<qué ha cambiado>"` |
 | «Quiero usar la skill de Luis» | ver «Skills de compañeros» |
 | «¿Hay novedades en las skills que uso?» | `compartir skills` |
+| «Guarda mi trabajo» | revisiones de «Antes de guardar» → `compartir mi-trabajo guardar "<qué ha hecho hoy>"` (ver «Mi trabajo») |
+| «Trae mi trabajo» | `compartir mi-trabajo traer` (ver «Mi trabajo») |
+| «Guarda, que me voy» / «Me voy» | como «Guarda mi trabajo» (si solo dice que se va, pregúntale antes si quiere que lo guarde) y, después de guardar, ofrece la ventana para desconectar sus cuentas: `setsid mint-docente-desconectar >/dev/null 2>&1 &` |
 
 Antes de trabajar en un espacio, `compartir traer`. Al terminar, `compartir guardar`.
 
@@ -58,6 +61,26 @@ Al aceptar una invitación, di quién la envía y pide confirmación: solo se ac
   - **Documentos** (docx, pdf…): «Luis también había cambiado la ficha. He guardado las dos: *ficha.docx* (la suya) y *ficha (versión de ana).docx* (la tuya). Dime cuál quieres conservar o si las junto.»
 - Código 4 al guardar: «está guardado en tu equipo; se subirá la próxima vez que guardes con conexión».
 - `skills_con_novedades` no vacío: avisa («Ana ha cambiado la skill de rúbricas, ¿quieres ver qué ha cambiado?»). Ver «Skills de compañeros».
+
+## Mi trabajo
+
+«Mi trabajo» es una copia privada en GitHub de **toda la carpeta de trabajo**, sin compañeros, para seguir en otro equipo (por ejemplo, un ordenador del centro que se borra al cerrar la sesión). Necesita GitHub conectado (código 3: como en «Antes de nada»).
+
+**Qué entra:** la carpeta de trabajo (salvo `Compartido/`, cuyos espacios se guardan en lo compartido), las skills propias del docente y la lista de espacios y de skills de compañeros que usa (para recuperarlos en otro equipo). **No entran** el historial de conversaciones, las claves (`.env`) ni los archivos de más de 95 MB. No toques la carpeta `.mint-docente/`: la gestiona `compartir`.
+
+**Guardar** (solo cuando el docente lo pida; nunca por tu cuenta):
+1. Haz las revisiones de «Antes de guardar» sobre lo nuevo o cambiado en la carpeta de trabajo (la primera vez, sobre todo). Datos del alumnado: solo con su visto bueno explícito.
+2. `compartir mi-trabajo guardar "<qué ha hecho hoy>"`. También guarda los espacios compartidos con cambios (`espacios`); aplica «Después de guardar o traer» a cada uno.
+3. `no_subidos` no vacío: nombra esos archivos y avisa: «son demasiado grandes para guardarlos en GitHub; si trabajas en un equipo del centro, se perderán al cerrar la sesión, salvo que los copies a Intercambio».
+4. Si dice «Trae primero tu trabajo…»: ya hay un «Mi trabajo» guardado desde otro equipo. Explícalo, ejecuta `compartir mi-trabajo traer` (no se pierde nada) y vuelve a guardar.
+5. Código 4: no se ha guardado nada en GitHub. Díselo y que lo intente cuando haya conexión.
+6. Si el docente se va: después de guardar, ofrece desconectar sus cuentas de IA y de GitHub de este equipo, por si lo usa otra persona. Con su sí, abre la ventana sin esperarla: `setsid mint-docente-desconectar >/dev/null 2>&1 &`. Avísale de que después ya no podrás seguir trabajando en este equipo hasta que vuelva a conectar.
+
+**Traer:** `compartir mi-trabajo traer`.
+- `traidos`: resume en una línea qué ha vuelto (no hace falta listar todo). `mezclados` y `dos_versiones`: como en «Después de guardar o traer»; si el docente tenía algo en este equipo, no se ha perdido.
+- `espacios_recuperados`: di qué espacios compartidos han vuelto. `skills_recuperadas` no vacío: dile que cierre y vuelva a abrir OpenCode para que las cargues.
+- `avisos`: trasládalos con tus palabras (un espacio al que ya no tiene acceso, una skill que no se ha podido recuperar…).
+- Código 1 con «Todavía no has guardado tu trabajo en GitHub desde ningún equipo.»: díselo; no hay nada que traer.
 
 ## Skills de compañeros
 

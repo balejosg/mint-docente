@@ -36,6 +36,8 @@
     { "action": "shell", "resource": "compartir invitar*", "effect": "ask" },
     { "action": "shell", "resource": "compartir quitar*", "effect": "ask" },
     { "action": "shell", "resource": "compartir guardar*", "effect": "ask" },
-    { "action": "shell", "resource": "compartir usar*", "effect": "ask" }
+    { "action": "shell", "resource": "compartir usar*", "effect": "ask" },
+    // Guardar «Mi trabajo» (todo el Aula) también pide confirmación.
+    { "action": "shell", "resource": "compartir mi-trabajo guardar*", "effect": "ask" }
   ]
 }
