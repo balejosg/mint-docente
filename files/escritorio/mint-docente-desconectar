@@ -1,7 +1,8 @@
 #!/bin/bash
 # Desconecta las cuentas de GitHub y de IA de este equipo (útil en equipos compartidos).
 # Se abre desde el menú («Desconectar mis cuentas»). Con --si se salta la pregunta (pruebas).
-# Sale con 0 al terminar y con 1 si el docente decide no desconectar.
+# Sale con 0 si todo queda desconectado, con 1 si el docente decide no
+# desconectar y con 2 si alguna credencial sigue en el equipo.
 TITULO="Mint Docente — Desconectar mis cuentas"
 export GH_NO_UPDATE_NOTIFIER=1 GH_PROMPT_DISABLED=1
 
@@ -11,13 +12,51 @@ if [ "${1:-}" != "--si" ]; then
     --text="¿Desconecto tus cuentas de IA y de GitHub de este equipo?\n\nTendrás que volver a conectarlas la próxima vez." || exit 1
 fi
 
-# GitHub (solo si hay sesión)
-if gh auth status -h github.com >/dev/null 2>&1; then
-  gh auth logout -h github.com >/dev/null 2>&1
-fi
-# Cuenta de IA: credenciales de OpenCode (el mismo archivo que limpia 90-limpieza.sh)
-rm -f "$HOME/.local/share/opencode/auth.json"
+# --- GitHub ---
+# Se cierra siempre, sin mirar antes «gh auth status»: ese comando comprueba el
+# token por internet y falla sin red, y entonces el token se quedaba aquí.
+gh auth logout -h github.com >/dev/null 2>&1
 
-zenity --info --title="$TITULO" --width=420 --text=\
+# Por si el logout ha fallado: quitar a mano la entrada de github.com del
+# archivo donde gh guarda el token (mint-docente-github usa --insecure-storage).
+CONF_GH="${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}"
+HOSTS="$CONF_GH/hosts.yml"
+if [ -f "$HOSTS" ] && grep -q '^github\.com:' "$HOSTS"; then
+  resto=$(awk '/^[^[:space:]#]/ { dentro = ($0 ~ /^github\.com:/) } !dentro' "$HOSTS")
+  if [ -z "$(printf '%s' "$resto" | tr -d '[:space:]')" ]; then
+    rm -f "$HOSTS" 2>/dev/null
+  else
+    tmp="$HOSTS.desconectar.$$"
+    if printf '%s\n' "$resto" > "$tmp" 2>/dev/null; then
+      chmod 600 "$tmp" 2>/dev/null
+      mv -f "$tmp" "$HOSTS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    fi
+  fi
+fi
+
+# --- Cuenta de IA: credenciales de OpenCode (el mismo archivo que limpia 90-limpieza.sh) ---
+AUTH_IA="$HOME/.local/share/opencode/auth.json"
+rm -f "$AUTH_IA" 2>/dev/null
+
+# --- Comprobar que de verdad no queda nada (sin red) ---
+queda_github=0
+if [ -f "$HOSTS" ] && grep -q '^github\.com:' "$HOSTS" 2>/dev/null; then
+  queda_github=1
+elif gh auth token -h github.com >/dev/null 2>&1; then
+  queda_github=1
+fi
+queda_ia=0
+[ ! -e "$AUTH_IA" ] || queda_ia=1
+
+if [ "$queda_github" = 0 ] && [ "$queda_ia" = 0 ]; then
+  zenity --info --title="$TITULO" --width=420 --text=\
 "<b>✔ Tus cuentas están desconectadas.</b>\n\nCierra OpenCode y vuelve a abrirlo para que el cambio surta efecto."
-exit 0
+  exit 0
+fi
+
+que=""
+[ "$queda_github" = 0 ] || que="${que}• No he podido desconectar tu cuenta de GitHub: sigue guardada en este equipo.\n"
+[ "$queda_ia" = 0 ] || que="${que}• No he podido desconectar tu cuenta de IA: sigue guardada en este equipo.\n"
+zenity --error --title="$TITULO" --width=460 --text=\
+"<b>Tus cuentas no se han desconectado del todo.</b>\n\n${que}\nReinicia la máquina y vuelve a intentarlo; si sigue igual, avisa al coordinador TIC antes de dejar el equipo."
+exit 2
