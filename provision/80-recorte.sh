@@ -61,22 +61,23 @@ apt-mark manual $METAS
 apt-mark hold $METAS
 # La retención solo cubre los metapaquetes: la ventana de kernels del Gestor de
 # actualizaciones instala paquetes con versión (linux-image-X) directamente.
-# Se bloquean todos (prioridad -1) salvo los del kernel en marcha, que van
-# detrás con su nombre exacto: apt_preferences(5) pide los patrones primero
-# para que los nombres exactos de después manden sobre ellos.
+# Se bloquean todos (prioridad -1) salvo los del kernel en marcha (500). Gana el
+# PRIMER registro que coincide (comprobado con apt-cache policy): los nombres
+# exactos del kernel en marcha van antes que los patrones; al revés, el kernel
+# en marcha se quedaría a -1 y sin candidato.
 EN_MARCHA=$(paquetes_kernel | while read -r p; do
   if [ "$(version_en_nombre "$p")" = "$KVER" ]; then echo "$p"; fi
 done | tr '\n' ' ')
 [ -n "$EN_MARCHA" ] || { echo "No se encuentran los paquetes del kernel en marcha"; exit 1; }
 cat > /etc/apt/preferences.d/90-mint-docente-kernel <<EOF
 # Mint Docente: sin compiladores, un kernel nuevo dejaría sin Guest Additions.
-Package: linux-image-[0-9]* linux-image-unsigned-[0-9]* linux-modules-[0-9]* linux-modules-extra-[0-9]* linux-headers-[0-9]* linux-main-modules-* linux-hwe-*
-Pin: version *
-Pin-Priority: -1
-
 Package: $EN_MARCHA
 Pin: version *
 Pin-Priority: 500
+
+Package: linux-image-[0-9]* linux-image-unsigned-[0-9]* linux-modules-[0-9]* linux-modules-extra-[0-9]* linux-headers-[0-9]* linux-main-modules-* linux-hwe-*
+Pin: version *
+Pin-Priority: -1
 EOF
 cat /etc/apt/preferences.d/90-mint-docente-kernel
 
