@@ -1,6 +1,7 @@
 package vbox
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -90,6 +91,8 @@ func TestCompartirRutaRed(t *testing.T) {
 }
 
 func TestCarpetaMaquinas(t *testing.T) {
+	existeRuta = func(string) bool { return true }
+	defer func() { existeRuta = func(r string) bool { _, e := os.Stat(r); return e == nil } }()
 	f := &falso{salidas: map[string]string{"list systemproperties": "API version: 7_1\r\nDefault machine folder:          C:\\Users\\José Ángel\\VirtualBox VMs\r\nVRDE: x\r\n"}}
 	c, err := CarpetaMaquinas(f)
 	if err != nil || c != `C:\Users\José Ángel\VirtualBox VMs` {
@@ -108,5 +111,46 @@ func TestArrancarYBorrar(t *testing.T) {
 	quiero := [][]string{{"startvm", "Mint Docente", "--type", "gui"}, {"unregistervm", "Mint Docente", "--delete"}}
 	if !reflect.DeepEqual(f.llamadas, quiero) {
 		t.Fatalf("%q", f.llamadas)
+	}
+}
+
+// cp1252 de «José Ángel»: é=0xE9, Á=0xC1.
+const cp1252Carpeta = "C:\\Users\\Jos\xe9 \xc1ngel\\VirtualBox VMs"
+const utf8Carpeta = `C:\Users\José Ángel\VirtualBox VMs`
+
+func decCp1252(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		b.WriteRune(rune(s[i])) // latin1/cp1252 coinciden en é y Á
+	}
+	return b.String()
+}
+
+func TestElegirCarpetaCp1252(t *testing.T) {
+	salida := "Default machine folder:   " + cp1252Carpeta + "\r\n"
+	existe := func(r string) bool { return r == `C:\Users\José Ángel` }
+	c, err := elegirCarpeta(salida, []func(string) string{decCp1252}, existe, `C:\x`)
+	if err != nil || c != utf8Carpeta {
+		t.Fatalf("%q %v", c, err)
+	}
+}
+
+func TestElegirCarpetaUTF8(t *testing.T) {
+	salida := "Default machine folder:   " + utf8Carpeta + "\r\n"
+	malo := func(string) string { t.Error("no debe decodificar"); return "" }
+	c, err := elegirCarpeta(salida, []func(string) string{malo}, func(string) bool { return true }, `C:\x`)
+	if err != nil || c != utf8Carpeta {
+		t.Fatalf("%q %v", c, err)
+	}
+}
+
+func TestElegirCarpetaRespaldo(t *testing.T) {
+	salida := "Default machine folder:   " + cp1252Carpeta + "\r\n"
+	c, err := elegirCarpeta(salida, []func(string) string{decCp1252}, func(string) bool { return false }, `C:\Users\Ana`)
+	if err != nil || c != `C:\Users\Ana\VirtualBox VMs` {
+		t.Fatalf("%q %v", c, err)
+	}
+	if _, err := elegirCarpeta(salida, nil, func(string) bool { return false }, ""); err == nil {
+		t.Error("sin perfil debe fallar")
 	}
 }

@@ -6,9 +6,11 @@ package vbox
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // ErrNoInstalado indica que este equipo no tiene VirtualBox.
@@ -111,21 +113,74 @@ func contiene(salida, nombre string) bool {
 	return false
 }
 
+// Hooks que sustituyen las pruebas (y, en Windows, los códigos de página).
+var (
+	// decodificadores convierten la salida cruda de VBoxManage, en la página
+	// ANSI y después en la OEM, a UTF-8. Vacío fuera de Windows.
+	decodificadores []func(string) string
+	existeRuta      = func(r string) bool { _, err := os.Stat(r); return err == nil }
+	perfilUsuario   = func() string { return os.Getenv("USERPROFILE") }
+)
+
 // CarpetaMaquinas devuelve la carpeta de máquinas por defecto de VirtualBox.
+// VBoxManage escribe por la tubería en la página de códigos de Windows, no en
+// UTF-8: se prueba UTF-8, luego ANSI y luego OEM, y se queda la primera
+// lectura cuya carpeta (o su carpeta madre) existe. Si ninguna, usa
+// %USERPROFILE%\VirtualBox VMs.
 func CarpetaMaquinas(e Ejecutor) (string, error) {
 	sal, err := e.Ejecutar("list", "systemproperties")
 	if err != nil {
 		return "", err
 	}
+	if _, ok := carpetaDeSalida(sal); !ok {
+		return "", errors.New("VirtualBox no indica su carpeta de máquinas")
+	}
+	return elegirCarpeta(sal, decodificadores, existeRuta, perfilUsuario())
+}
+
+func carpetaDeSalida(sal string) (string, bool) {
 	const clave = "Default machine folder:"
 	for _, l := range strings.Split(sal, "\n") {
 		if r, ok := strings.CutPrefix(l, clave); ok {
 			if c := strings.TrimSpace(r); c != "" {
-				return c, nil
+				return c, true
 			}
 		}
 	}
-	return "", errors.New("VirtualBox no indica su carpeta de máquinas")
+	return "", false
+}
+
+func elegirCarpeta(sal string, decs []func(string) string, existe func(string) bool, perfil string) (string, error) {
+	// Las lecturas se calculan por orden y de forma perezosa.
+	lecturas := []func() string{}
+	if utf8.ValidString(sal) {
+		lecturas = append(lecturas, func() string { return sal })
+	}
+	for _, d := range decs {
+		lecturas = append(lecturas, func() string { return d(sal) })
+	}
+	for _, leer := range lecturas {
+		c, ok := carpetaDeSalida(leer())
+		if !ok || !utf8.ValidString(c) {
+			continue
+		}
+		if existe(c) || existe(madre(c)) {
+			return c, nil
+		}
+	}
+	if perfil == "" {
+		return "", errors.New("no se encuentra la carpeta de máquinas de VirtualBox")
+	}
+	return perfil + `\VirtualBox VMs`, nil
+}
+
+// madre devuelve la carpeta que contiene a c (separador \ o /).
+func madre(c string) string {
+	c = strings.TrimRight(c, `\/`)
+	if i := strings.LastIndexAny(c, `\/`); i > 0 {
+		return c[:i]
+	}
+	return c
 }
 
 // Importar importa la OVA como una máquina nueva.
