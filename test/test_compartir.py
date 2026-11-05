@@ -640,6 +640,76 @@ class MiTrabajo(BaseMiTrabajo):
         self.assertIn("ficha.md", self.git(self.base / "ana" / "fichas.git",
                                            "ls-tree", "-r", "--name-only", "main"))
 
+    def repo_anidado(self, ruta: Path, archivo="index.html"):
+        """Una carpeta con su propio repositorio (como deja `git init` o un generador de apps)."""
+        ruta.mkdir(parents=True)
+        (ruta / archivo).write_text("<h1>app</h1>\n")
+        self.git(ruta, "init", "-q")
+        self.git(ruta, "add", "-A")
+        self.git(ruta, "-c", "user.name=x", "-c", "user.email=x@x", "commit", "-q", "-m", "app")
+        (ruta / "sin-confirmar.js").write_text("// aún sin commit\n")
+
+    def gitlinks_remotos(self):
+        return [l for l in self.git(self.bare(), "ls-tree", "-r", "main").splitlines()
+                if l.startswith("160000")]
+
+    def test_guardar_repositorio_anidado_no_se_sube_vacio(self):
+        aula = self.aula("ana")
+        aula.mkdir(parents=True)
+        (aula / "notas.md").write_text("hola\n")
+        self.repo_anidado(aula / "Proyectos" / "mi app")
+        self.repo_anidado(aula / "web" / "node_modules" / "paquete")   # ignorado: ni se avisa
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Con app")
+        self.assertEqual(datos["no_subidos"], [{"archivo": "Proyectos/mi app", "motivo": "repositorio"}])
+        self.assertEqual(self.gitlinks_remotos(), [])
+        self.assertEqual(self.ok("ana", "mi-trabajo", "estado")["pendientes"], 0)
+        archivos = self.archivos_remotos()
+        self.assertIn("notas.md", archivos)
+        self.assertFalse([a for a in archivos if a.startswith(("Proyectos", "web"))], archivos)
+        # La vez siguiente lo sigue avisando, y sigue sin subirse.
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Otra vez")
+        self.assertEqual(datos["no_subidos"], [{"archivo": "Proyectos/mi app", "motivo": "repositorio"}])
+        self.assertEqual(self.gitlinks_remotos(), [])
+        # Y la carpeta del docente sigue intacta.
+        self.assertTrue((aula / "Proyectos" / "mi app" / "index.html").is_file())
+        self.assertTrue((aula / "Proyectos" / "mi app" / ".git").is_dir())
+
+    def test_guardar_quita_repositorio_anidado_ya_confirmado(self):
+        """Un repositorio anidado que ya entró en un commit local (p. ej. con un
+        «traer» anterior) tampoco llega a GitHub como carpeta vacía."""
+        aula = self.aula("ana")
+        aula.mkdir(parents=True)
+        (aula / "notas.md").write_text("hola\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        self.repo_anidado(aula / "app")
+        self.git(aula, "add", "app")
+        self.git(aula, "-c", "user.name=x", "-c", "user.email=x@x", "commit", "-q", "-m", "gitlink")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Con app")
+        self.assertEqual(datos["no_subidos"], [{"archivo": "app", "motivo": "repositorio"}])
+        self.assertEqual(self.gitlinks_remotos(), [])
+        self.assertTrue((aula / "app" / "index.html").is_file())
+
+    def test_guardar_espacio_que_falla_no_pierde_mi_trabajo(self):
+        ana, _ = self.espacio_compartido()
+        self.ok("ana", "crear", "Otro")
+        (ana / "ficha.md").write_text("ficha\n")
+        (self.raiz("ana") / "Otro" / "otro.md").write_text("otro\n")
+        shutil.rmtree(self.base / "ana" / "fichas.git")      # sin acceso a ese espacio
+        with open(self.aula("ana") / "vídeo grande.mp4", "wb") as f:
+            f.truncate(96 * 1024 * 1024)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        rc, datos, err = self.compartir("ana", "mi-trabajo", "guardar", "Todo")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(datos["no_subidos"], [{"archivo": "vídeo grande.mp4", "motivo": "grande"}])
+        self.assertIn("notas.md", datos["subidos"])
+        por_nombre = {e["nombre"]: e for e in datos["espacios"]}
+        self.assertEqual(set(por_nombre), {"Fichas", "Otro"})
+        self.assertIn("Ya no tienes acceso a este espacio", por_nombre["Fichas"]["error"])
+        self.assertNotIn("error", por_nombre["Otro"])
+        self.assertEqual(por_nombre["Otro"]["subidos"], ["otro.md"])
+        self.assertIn("otro.md", self.git(self.base / "ana" / "otro.git",
+                                          "ls-tree", "-r", "--name-only", "main"))
+
     def test_mi_trabajo_no_es_invitacion(self):
         self.aula("ana").mkdir(parents=True)
         (self.aula("ana") / "notas.md").write_text("hola\n")

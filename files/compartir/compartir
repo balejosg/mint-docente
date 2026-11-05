@@ -60,7 +60,6 @@ MENSAJES = {
     "skill_ocupada": "Ya usas otra skill llamada {}. No la sustituyo.",
     "mi_trabajo_en_otro_equipo": "En GitHub ya tienes «Mi trabajo» guardado desde otro equipo. "
                                  "Trae primero tu trabajo y después vuelve a guardar.",
-    "espacio_sin_guardar": "«Mi trabajo» se ha guardado, pero el espacio «{}» no: {}",
     "sin_mi_trabajo": "Todavía no has guardado tu trabajo en GitHub desde ningún equipo.",
     "aviso_espacio": "No he podido recuperar el espacio «{}»: {}",
     "aviso_skill_sin_version": "No he podido recuperar la skill {} en la versión que usabas: "
@@ -574,9 +573,25 @@ def sacar_del_indice(ruta: Path, archivo: str) -> None:
         git(ruta, "rm", "-q", "--cached", "--", archivo)
 
 
-def preparar_local(esp: Espacio, mensaje: str, grandes: str = "error") -> list[str]:
+def sacar_repositorios(ruta: Path) -> list[str]:
+    """Una carpeta del Aula con su propio repositorio (un `git init` del agente o
+    de un generador de aplicaciones) entraría en «Mi trabajo» como una carpeta
+    vacía, sin sus archivos. Se saca del índice (se conserva tal cual en el
+    equipo) y se excluye hasta el próximo guardado, que lo vuelve a buscar.
+    Devuelve las carpetas, para avisar al docente de que no se han guardado."""
+    repos = sorted(linea.split("\t", 1)[1]
+                   for linea in git(ruta, "ls-files", "-s", "-z").stdout.split("\0")
+                   if linea.startswith("160000 "))
+    for r in repos:
+        git(ruta, "update-index", "--force-remove", "--", r)    # solo el índice
+    excluir(ruta, repos)          # que `estado` no los cuente como pendientes
+    return repos
+
+
+def preparar_local(esp: Espacio, mensaje: str, grandes: str = "error") -> tuple[list[str], list[str]]:
     """Junta en un único commit local todo lo que aún no está en GitHub.
-    Devuelve los archivos grandes que se han dejado fuera (grandes="excluir")."""
+    Con grandes="excluir" (el Aula) devuelve (archivos grandes que se han dejado
+    fuera, carpetas con su propio repositorio que no se han guardado)."""
     limpiar_mezcla(esp)
     excluidos, seguidos = excluir_grandes_previos(esp.ruta) if grandes == "excluir" else ([], [])
     git(esp.ruta, "add", "-A", "--", ":(top)", *(f":(top,exclude,literal){a}" for a in seguidos))
@@ -585,18 +600,20 @@ def preparar_local(esp: Espacio, mensaje: str, grandes: str = "error") -> list[s
         # que este equipo mezcló de GitHub, no origin/main (que puede ir por delante).
         base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
         git(esp.ruta, "reset", "-q", "--soft", base)
+    repos = sacar_repositorios(esp.ruta) if grandes == "excluir" else []
     excluidos += comprobar_salientes(esp, grandes)
     if git(esp.ruta, "diff", "--cached", "--quiet", comprobar=False).returncode != 0:
         git(esp.ruta, "commit", "-q", "-m", mensaje)
-    return sorted(set(excluidos))
+    return sorted(set(excluidos)), repos
 
 
 def guardar_repo(esp_o_ruta: "Espacio | Path", descripcion: str, grandes: str = "error") -> dict:
     """Guarda un repositorio (un espacio o el Aula): commit local, mezcla con lo
     de GitHub sin perder nada y subida. Con grandes="excluir", los archivos de
-    más de LIMITE_BYTES no se suben y se devuelven en "no_subidos"."""
+    más de LIMITE_BYTES no se suben y se devuelven en "no_subidos", junto con las
+    carpetas que tienen su propio repositorio (motivo "repositorio")."""
     esp = esp_o_ruta if isinstance(esp_o_ruta, Espacio) else Espacio(Path(esp_o_ruta))
-    excluidos = preparar_local(esp, descripcion, grandes)
+    excluidos, repos = preparar_local(esp, descripcion, grandes)
     total = {"subidos": [], "mezclados": [], "dos_versiones": []}
     for _ in range(REINTENTOS + 1):
         fetch(esp)
@@ -619,7 +636,8 @@ def guardar_repo(esp_o_ruta: "Espacio | Path", descripcion: str, grandes: str = 
         raise Error(MENSAJES["git"].format("otros compañeros están guardando a la vez; "
                                            "inténtalo de nuevo en un momento"))
     if grandes == "excluir":
-        total["no_subidos"] = [{"archivo": a, "motivo": "grande"} for a in excluidos]
+        total["no_subidos"] = [{"archivo": a, "motivo": "grande"} for a in excluidos] + \
+            [{"archivo": r, "motivo": "repositorio"} for r in repos]
     return total
 
 
@@ -905,15 +923,16 @@ def mi_trabajo_guardar(args):
     escribir_metadatos()
     total = guardar_repo(aula(), descripcion, grandes="excluir")
     total["espacios"] = []
+    # «Mi trabajo» ya está guardado: si un espacio falla, se dice en su entrada
+    # ("error") y se sigue con los demás, sin perder lo de arriba (no_subidos…).
     for esp in espacios_locales():
-        if pendientes(esp) == 0:
-            continue
         try:
+            if pendientes(esp) == 0:
+                continue
             res = guardar_repo(esp, descripcion)
-        except (SinSesion, SinConexion):
-            raise
         except Error as e:
-            raise Error(MENSAJES["espacio_sin_guardar"].format(esp.nombre, e))
+            total["espacios"].append({"nombre": esp.nombre, "error": str(e)})
+            continue
         total["espacios"].append({"nombre": esp.nombre, **res})
     salida(total)
 
@@ -946,6 +965,7 @@ def confirmar_locales_aula(carpeta: Path) -> None:
     with open(carpeta / ".git" / "info" / "exclude", "a", encoding="utf-8") as f:
         f.write(GITIGNORE)
     git(carpeta, "add", "-A", "--", ":(top)", *(f":(top,exclude,literal){a}" for a in seguidos))
+    sacar_repositorios(carpeta)
     if git(carpeta, "status", "--porcelain", "--untracked-files=no").stdout.strip():
         git(carpeta, "commit", "-q", "-m", "Cambios locales antes de traer")
 

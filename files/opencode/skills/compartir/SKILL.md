@@ -66,15 +66,17 @@ Al aceptar una invitación, di quién la envía y pide confirmación: solo se ac
 
 «Mi trabajo» es una copia privada en GitHub de **toda la carpeta de trabajo**, sin compañeros, para seguir en otro equipo (por ejemplo, un ordenador del centro que se borra al cerrar la sesión). Necesita GitHub conectado (código 3: como en «Antes de nada»).
 
-**Qué entra:** la carpeta de trabajo (salvo `Compartido/`, cuyos espacios se guardan en lo compartido), las skills propias del docente y la lista de espacios y de skills de compañeros que usa (para recuperarlos en otro equipo). **No entran** el historial de conversaciones, las claves (`.env`) ni los archivos de más de 95 MB. No toques la carpeta `.mint-docente/`: la gestiona `compartir`.
+**Qué entra:** la carpeta de trabajo (salvo `Compartido/`, cuyos espacios se guardan en lo compartido), las skills propias del docente y la lista de espacios y de skills de compañeros que usa (para recuperarlos en otro equipo). **No entran** el historial de conversaciones, las claves (`.env`), los archivos de más de 95 MB ni las carpetas que llevan su propio sistema de guardado (salen en `no_subidos`). No toques la carpeta `.mint-docente/`: la gestiona `compartir`.
 
 **Guardar** (solo cuando el docente lo pida; nunca por tu cuenta):
 1. Haz las revisiones de «Antes de guardar» sobre lo nuevo o cambiado en la carpeta de trabajo (la primera vez, sobre todo). Datos del alumnado: solo con su visto bueno explícito.
 2. `compartir mi-trabajo guardar "<qué ha hecho hoy>"`. También guarda los espacios compartidos con cambios (`espacios`); aplica «Después de guardar o traer» a cada uno.
-3. `no_subidos` no vacío: nombra esos archivos y avisa: «son demasiado grandes para guardarlos en GitHub; si trabajas en un equipo del centro, se perderán al cerrar la sesión, salvo que los copies a Intercambio».
+   Un espacio con `error`: «Mi trabajo» sí está guardado; solo falta ese espacio. Tranquilízale y trasládale el motivo (`error`) con tus palabras. Los demás espacios se han guardado con normalidad.
+3. `no_subidos` no vacío: nombra cada elemento según su `motivo`:
+   - `grande`: «son demasiado grandes para guardarlos en GitHub; si trabajas en un equipo del centro, se perderán al cerrar la sesión, salvo que los copies a Intercambio».
+   - `repositorio`: es una carpeta que lleva su propio sistema de guardado (lo crean algunas herramientas de aplicaciones, o tú mismo), y por eso **no se ha guardado en «Mi trabajo»**: en otro equipo aparecería vacía. Díselo así, sin hablar de git ni de repositorios: «la carpeta *mi app* no se ha guardado en Mi trabajo; si trabajas en un equipo del centro, se perdería al cerrar la sesión». Ofrece guardarla aparte, en un espacio compartido solo para ella (sin invitar a nadie, si no quiere): `compartir crear "<nombre>"`, copia allí el contenido de la carpeta **sin** su `.git`, y `compartir guardar "<nombre>" "<qué es>"`. Si prefiere no hacerlo ahora, que la copie a Intercambio antes de irse. No borres la carpeta original ni su `.git` sin su permiso.
 4. Si dice «Trae primero tu trabajo…»: ya hay un «Mi trabajo» guardado desde otro equipo. Explícalo, ejecuta `compartir mi-trabajo traer` (no se pierde nada) y vuelve a guardar.
 5. Código 4: puede que no se haya guardado todo en GitHub. Aquí no vale «está guardado en tu equipo» (de «Después de guardar o traer»): en un equipo del centro se perdería al cerrar la sesión. Díselo, que lo intente cuando haya conexión y, si se va ya, que copie lo importante a Intercambio.
-   Si el error dice que «Mi trabajo» se ha guardado pero un espacio no: su trabajo sí está guardado; solo falta ese espacio. Tranquilízale y trasládale el motivo.
 6. Si el docente se va: después de guardar, ofrece desconectar sus cuentas de IA y de GitHub de este equipo, por si lo usa otra persona. Con su sí, abre la ventana sin esperarla: `setsid mint-docente-desconectar >/dev/null 2>&1 &`. Avísale de que después ya no podrás seguir trabajando en este equipo hasta que vuelva a conectar.
 
 **Traer:** `compartir mi-trabajo traer`.
