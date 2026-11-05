@@ -15,37 +15,40 @@ import (
 // ErrSuma indica que el archivo completo no coincide con el sha256 esperado.
 var ErrSuma = errors.New("la suma de comprobación no coincide")
 
-// Partes concatena las partes en orden en destino, borrando cada una después
-// de añadirla. Si la suma de la completa no cuadra devuelve ErrSuma y deja sin
-// destino ni partes, para que el flujo vuelva a descargar.
-func Partes(partes []string, destino string, sha256Esperado string) (err error) {
+// Partes concatena las partes en orden en destino y comprueba la suma de la
+// completa. Las partes solo se borran cuando la suma cuadra. Si no cuadra
+// devuelve ErrSuma y deja sin destino ni partes, para que el flujo vuelva a
+// descargar. Ante cualquier otro error (disco lleno, parte ausente, fallo de
+// lectura) borra solo el destino a medias y conserva todas las partes.
+func Partes(partes []string, destino string, sumaEsperada string) error {
 	out, err := os.Create(destino)
 	if err != nil {
 		return err
 	}
 	h := sha256.New()
-	defer func() {
-		if err != nil {
-			out.Close()
-			os.Remove(destino)
-			for _, p := range partes {
-				os.Remove(p)
-			}
-		}
-	}()
+	fallo := func(e error) error {
+		out.Close()
+		os.Remove(destino)
+		return e
+	}
 	for _, p := range partes {
-		if err = anadir(out, h, p); err != nil {
-			return err
-		}
-		if err = os.Remove(p); err != nil {
-			return err
+		if err := anadir(out, h, p); err != nil {
+			return fallo(err)
 		}
 	}
-	if err = out.Close(); err != nil {
-		return err
+	if err := out.Close(); err != nil {
+		os.Remove(destino)
+		return fmt.Errorf("al cerrar %s: %w", destino, err)
 	}
-	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), sha256Esperado) {
+	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), sumaEsperada) {
+		os.Remove(destino)
+		for _, p := range partes {
+			os.Remove(p)
+		}
 		return ErrSuma
+	}
+	for _, p := range partes {
+		os.Remove(p) // si no se puede ahora, no invalida la unión ya verificada
 	}
 	return nil
 }

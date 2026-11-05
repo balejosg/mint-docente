@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -65,5 +66,48 @@ func TestSumaMal(t *testing.T) {
 		if _, e := os.Stat(p); !os.IsNotExist(e) {
 			t.Fatalf("queda %s", p)
 		}
+	}
+}
+
+func existe(p string) bool { _, err := os.Stat(p); return err == nil }
+
+func TestParteAusenteConservaLasDemas(t *testing.T) {
+	dir := t.TempDir()
+	partes := crear(t, dir, "a", "b")
+	partes = append(partes, filepath.Join(dir, "no-existe"))
+	destino := filepath.Join(dir, "x.ova")
+	err := Partes(partes, destino, suma([]byte("ab")))
+	if !errors.Is(err, os.ErrNotExist) || errors.Is(err, ErrSuma) {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if existe(destino) || !existe(partes[0]) || !existe(partes[1]) {
+		t.Fatal("debe quedar sin destino y con las partes")
+	}
+}
+
+func TestFalloAlEscribirConservaPartes(t *testing.T) {
+	dir := t.TempDir()
+	partes := crear(t, dir, "a", "b")
+	// La segunda "parte" es un directorio: leerla falla a mitad de la unión.
+	malo := filepath.Join(dir, "directorio")
+	if err := os.Mkdir(malo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	partes = append(partes[:1], malo, partes[1])
+	destino := filepath.Join(dir, "x.ova")
+	err := Partes(partes, destino, suma([]byte("ab")))
+	if err == nil || errors.Is(err, ErrSuma) {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if existe(destino) || !existe(partes[0]) || !existe(partes[2]) {
+		t.Fatal("debe quedar sin destino y con las partes")
+	}
+}
+
+func TestSumaEnMayusculas(t *testing.T) {
+	dir := t.TempDir()
+	partes := crear(t, dir, "a")
+	if err := Partes(partes, filepath.Join(dir, "x.ova"), strings.ToUpper(suma([]byte("a")))); err != nil {
+		t.Fatal(err)
 	}
 }
