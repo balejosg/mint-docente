@@ -4,3 +4,4 @@ packer/packer_cache/
 crash.log
 packer/http/preseed.cfg
 __pycache__/
+.superpowers/
