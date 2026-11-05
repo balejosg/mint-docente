@@ -26,6 +26,14 @@ MENSAJES = {
                     "se subirá la próxima vez que guardes con conexión.",
     "sin_conexion_traer": "No hay conexión con GitHub: no he podido traer lo último. "
                           "Inténtalo cuando haya conexión.",
+    "sin_conexion_gh": "No hay conexión con GitHub. Inténtalo cuando haya conexión.",
+    "sin_acceso_espacio": "Ya no tienes acceso a este espacio (o se ha borrado). Tus archivos "
+                          "siguen en tu carpeta; pregunta a quien lo creó.",
+    "nombre_raro": "El nombre del espacio no puede llevar «/» ni «\\» ni empezar por punto.",
+    "mezcla": "No he podido juntar los cambios de «{}» con los de tus compañeros. No se ha "
+              "perdido nada ni se ha subido nada; avisa a quien te ayude con el equipo.",
+    "aceptado_sin_copia": "He aceptado la invitación, pero no he podido descargar el espacio. "
+                          "Vuelve a intentarlo con: compartir aceptar {}",
     "ya_existe": "Ya tienes un espacio llamado «{}».",
     "ya_existe_github": "Ya tienes en GitHub un espacio con el nombre «{}». Elige otro nombre.",
     "no_existe": "No hay ningún espacio llamado «{}» en la carpeta Compartido.",
@@ -56,6 +64,7 @@ DESCRIPCION_REPO = "Espacio compartido de Mint Docente"
 TEMA = "mint-docente"
 LIMITE_BYTES = 95 * 1024 * 1024
 REINTENTOS = 3
+TIEMPO_MAX = 300
 REMOTO = "origin/main"
 GITIGNORE = "\n".join([
     "# Archivos que no se comparten",
@@ -119,7 +128,9 @@ def gh(args: list[str]) -> str:
     entorno = {**os.environ, "GH_NO_UPDATE_NOTIFIER": "1", "GH_PROMPT_DISABLED": "1"}
     try:
         r = subprocess.run([os.environ.get("COMPARTIR_GH", "gh"), *args],
-                           capture_output=True, text=True, env=entorno)
+                           capture_output=True, text=True, env=entorno, timeout=TIEMPO_MAX)
+    except subprocess.TimeoutExpired:
+        raise SinConexion(MENSAJES["sin_conexion_gh"])
     except OSError:
         raise ErrorGitHub(MENSAJES["github"].format("no está instalada la orden gh"))
     if r.returncode == 0:
@@ -128,7 +139,7 @@ def gh(args: list[str]) -> str:
     if r.returncode == 4 or "HTTP 401" in err or "gh auth login" in err:
         raise SinSesion()
     if re.search(r"error connecting|could not resolve|timeout|network is unreachable", err, re.I):
-        raise SinConexion(MENSAJES["sin_conexion_traer"])
+        raise SinConexion(MENSAJES["sin_conexion_gh"])
     raise ErrorGitHub(err.splitlines()[-1] if err else f"gh terminó con {r.returncode}")
 
 
@@ -147,20 +158,33 @@ def yo() -> dict:
 
 
 # ---------------------------------------------------------------- git
+def ultima_linea(texto: str) -> str:
+    lineas = texto.strip().splitlines()
+    return lineas[-1] if lineas else "error desconocido"
+
+
 def git(ruta: Path, *args: str, comprobar=True) -> subprocess.CompletedProcess:
     entorno = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
-    r = subprocess.run(["git", "-c", "core.quotepath=off", "-C", str(ruta), *args],
-                       capture_output=True, text=True, env=entorno)
+    # Si la red se queda colgada a mitad, git aborta en vez de esperar sin fin.
+    try:
+        r = subprocess.run(["git", "-c", "core.quotepath=off", "-c", "http.lowSpeedLimit=1000",
+                            "-c", "http.lowSpeedTime=20", "-C", str(ruta), *args],
+                           capture_output=True, text=True, env=entorno, timeout=TIEMPO_MAX)
+    except subprocess.TimeoutExpired:
+        raise SinConexion(MENSAJES["sin_conexion"])
     if comprobar and r.returncode != 0:
-        raise Error(MENSAJES["git"].format((r.stderr or r.stdout).strip().splitlines()[-1:]))
+        raise Error(MENSAJES["git"].format(ultima_linea(r.stderr or r.stdout)))
     return r
 
 
 def error_de_red(r: subprocess.CompletedProcess) -> Error:
     err = r.stderr
-    if re.search(r"Authentication failed|could not read Username|HTTP 40[13]|"
+    if re.search(r"Authentication failed|could not read Username|HTTP 401|"
                  r"terminal prompts disabled", err, re.I):
         return SinSesion()
+    if re.search(r"not found|does not appear to be a git repository|HTTP 40[34]|"
+                 r"Permission to .* denied", err, re.I):
+        return Error(MENSAJES["sin_acceso_espacio"])
     return SinConexion(MENSAJES["sin_conexion"])
 
 
@@ -189,7 +213,13 @@ class Espacio:
         return r.stdout.strip() or git(self.ruta, "config", "user.name").stdout.strip()
 
 
+def nombre_valido(nombre: str) -> bool:
+    return bool(nombre) and not re.search(r"[/\\\0]", nombre) and not nombre.startswith(".")
+
+
 def espacio(nombre: str) -> Espacio:
+    if not nombre_valido(nombre):
+        raise ErrorGitHub(MENSAJES["no_existe"].format(nombre))
     ruta = raiz() / nombre
     if not (ruta / ".git").is_dir():
         raise ErrorGitHub(MENSAJES["no_existe"].format(nombre))
@@ -211,8 +241,8 @@ def configurar_identidad(ruta: Path, usuario: dict) -> None:
 
 def clonar(propietario: str, repo: str, destino: Path, usuario: dict) -> None:
     destino.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(["git", "clone", "-q", f"{git_base()}/{propietario}/{repo}.git", str(destino)],
-                       capture_output=True, text=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    r = git(destino.parent, "clone", "-q", f"{git_base()}/{propietario}/{repo}.git", str(destino),
+            comprobar=False)
     if r.returncode != 0:
         raise error_de_red(r)
     configurar_identidad(destino, usuario)
@@ -247,6 +277,8 @@ def nombre_version(ruta: Path, archivo: str, usuario: str) -> str:
 def escribir_etapa(esp: Espacio, etapa: int, archivo: str, destino: str) -> None:
     contenido = subprocess.run(["git", "-C", str(esp.ruta), "show", f":{etapa}:{archivo}"],
                                capture_output=True, check=True).stdout
+    if (esp.ruta / destino).is_dir():
+        raise Error(MENSAJES["mezcla"].format(destino))
     (esp.ruta / destino).parent.mkdir(parents=True, exist_ok=True)
     (esp.ruta / destino).write_bytes(contenido)
 
@@ -267,27 +299,36 @@ def mezclar(esp: Espacio) -> dict:
     r = git(esp.ruta, "merge", "-q", "--no-edit", REMOTO, comprobar=False)
     conflictos = set()
     if r.returncode != 0:
-        etapas: dict[str, set[int]] = {}
-        for linea in nombres(git(esp.ruta, "ls-files", "-u", "-z").stdout):
-            meta, archivo = linea.split("\t", 1)
-            etapas.setdefault(archivo, set()).add(int(meta.split()[2]))
-        if not etapas:
-            raise Error(MENSAJES["git"].format(r.stderr.strip()))
-        for archivo, e in sorted(etapas.items()):
-            conflictos.add(archivo)
-            if 2 in e and 3 in e:                    # cambiado en los dos lados
-                copia = nombre_version(esp.ruta, archivo, esp.usuario)
-                escribir_etapa(esp, 3, archivo, archivo)
-                escribir_etapa(esp, 2, archivo, copia)
-                git(esp.ruta, "add", "--", archivo, copia)
-                res["dos_versiones"].append([archivo, copia])
-            elif 3 in e:                             # yo lo borré, lo cambiaron: se queda
-                escribir_etapa(esp, 3, archivo, archivo)
-                git(esp.ruta, "add", "--", archivo)
-            else:                                    # lo borraron, yo lo cambié: se queda
-                escribir_etapa(esp, 2, archivo, archivo)
-                git(esp.ruta, "add", "--", archivo)
-        git(esp.ruta, "commit", "-q", "--no-edit")
+        archivo = ""
+        try:
+            etapas: dict[str, set[int]] = {}
+            for linea in nombres(git(esp.ruta, "ls-files", "-u", "-z").stdout):
+                meta, nombre = linea.split("\t", 1)
+                etapas.setdefault(nombre, set()).add(int(meta.split()[2]))
+            if not etapas:
+                raise Error(MENSAJES["mezcla"].format(ultima_linea(r.stderr or r.stdout)))
+            for archivo, e in sorted(etapas.items()):
+                conflictos.add(archivo)
+                if 2 in e and 3 in e:                # cambiado en los dos lados
+                    copia = nombre_version(esp.ruta, archivo, esp.usuario)
+                    escribir_etapa(esp, 3, archivo, archivo)
+                    escribir_etapa(esp, 2, archivo, copia)
+                    git(esp.ruta, "add", "--", archivo, copia)
+                    res["dos_versiones"].append([archivo, copia])
+                elif 3 in e or 2 in e:               # solo queda un lado: se conserva
+                    escribir_etapa(esp, 3 if 3 in e else 2, archivo, archivo)
+                    git(esp.ruta, "add", "--", archivo)
+                else:                                # nadie lo conserva (p. ej. renombrado)
+                    git(esp.ruta, "rm", "-q", "--cached", "--", archivo)
+                    (esp.ruta / archivo).unlink(missing_ok=True)
+            if git(esp.ruta, "diff", "--name-only", "--diff-filter=U").stdout.strip():
+                raise Error(MENSAJES["mezcla"].format(archivo))
+            git(esp.ruta, "commit", "-q", "--no-edit")
+        except Exception as ex:
+            git(esp.ruta, "merge", "--abort", comprobar=False)
+            if isinstance(ex, Error):
+                raise
+            raise Error(MENSAJES["mezcla"].format(archivo))
     res["mezclados"] = sorted((suyos & mios) - conflictos)
     return res
 
@@ -295,8 +336,9 @@ def mezclar(esp: Espacio) -> dict:
 def comprobar_salientes(esp: Espacio) -> None:
     """Rechaza archivos enormes y claves secretas en lo que se va a subir."""
     if hay_remoto(esp):
+        base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
         cambiados = nombres(git(esp.ruta, "diff", "-z", "--cached", "--name-only",
-                                "--diff-filter=AMR", REMOTO).stdout)
+                                "--diff-filter=AMR", base).stdout)
     else:
         cambiados = nombres(git(esp.ruta, "ls-files", "-z", "--cached").stdout)
     for archivo in cambiados:
@@ -316,6 +358,18 @@ def comprobar_salientes(esp: Espacio) -> None:
 
 def skills_dir() -> Path:
     return Path(os.environ.get("COMPARTIR_SKILLS", Path.home() / ".config" / "opencode" / "skills"))
+
+
+def skills_sistema() -> set[str]:
+    """Nombres de las skills que trae la imagen: una skill compartida no puede suplantarlas."""
+    d = Path(os.environ.get("COMPARTIR_SKILLS_SISTEMA", "/usr/share/mint-docente/skills"))
+    if not d.is_dir():
+        return set()
+    res = set()
+    for p in d.iterdir():
+        res.add(p.name)
+        res.add(leer_frontmatter(p / "SKILL.md").get("name", p.name))
+    return res
 
 
 def leer_frontmatter(skill_md: Path) -> dict:
@@ -394,6 +448,8 @@ def cmd_crear(args):
     s = slug(nombre)
     if not nombre or not s:
         raise Error(MENSAJES["nombre_vacio"])
+    if not nombre_valido(nombre):
+        raise Error(MENSAJES["nombre_raro"])
     destino = raiz() / nombre
     if destino.exists():
         raise Error(MENSAJES["ya_existe"].format(nombre))
@@ -416,11 +472,24 @@ def cmd_crear(args):
     salida({"espacio": nombre, "propietario": usuario["login"]})
 
 
+def limpiar_mezcla(esp: Espacio) -> None:
+    """Deshace una mezcla que quedó a medias (proceso interrumpido)."""
+    if (esp.ruta / ".git" / "MERGE_HEAD").exists():
+        if git(esp.ruta, "merge", "--abort", comprobar=False).returncode != 0:
+            for f in ("MERGE_HEAD", "MERGE_MSG", "MERGE_MODE"):
+                (esp.ruta / ".git" / f).unlink(missing_ok=True)
+            git(esp.ruta, "reset", "-q")
+
+
 def preparar_local(esp: Espacio, mensaje: str) -> None:
     """Junta en un único commit local todo lo que aún no está en GitHub."""
+    limpiar_mezcla(esp)
     git(esp.ruta, "add", "-A")
     if hay_remoto(esp):
-        git(esp.ruta, "reset", "-q", "--soft", REMOTO)
+        # Solo se juntan los commits propios: el punto de partida es lo último
+        # que este equipo mezcló de GitHub, no origin/main (que puede ir por delante).
+        base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
+        git(esp.ruta, "reset", "-q", "--soft", base)
     comprobar_salientes(esp)
     if git(esp.ruta, "diff", "--cached", "--quiet", comprobar=False).returncode != 0:
         git(esp.ruta, "commit", "-q", "-m", mensaje)
@@ -448,7 +517,7 @@ def cmd_guardar(args):
             total["subidos"] = sorted(subidos)
             git(esp.ruta, "fetch", "-q", "origin", comprobar=False)
             break
-        if not re.search(r"rejected|fetch first|non-fast-forward", r.stderr):
+        if not re.search(r"\[rejected\].*\((fetch first|non-fast-forward)\)", r.stderr):
             raise error_de_red(r)
     else:
         raise Error(MENSAJES["git"].format("otros compañeros están guardando a la vez; "
@@ -457,6 +526,7 @@ def cmd_guardar(args):
 
 
 def traer_uno(esp: Espacio) -> dict:
+    limpiar_mezcla(esp)
     if git(esp.ruta, "status", "--porcelain").stdout.strip():
         git(esp.ruta, "add", "-A")
         git(esp.ruta, "commit", "-q", "-m", "Cambios locales antes de traer")
@@ -539,18 +609,39 @@ def cmd_invitaciones(args):
 
 
 def cmd_aceptar(args):
-    if len(args) != 1 or not args[0].isdigit():
+    """aceptar <id> acepta una invitación; aceptar <propietario>/<repo> vuelve a
+    descargar un espacio ya aceptado (por ejemplo, si se borró la carpeta)."""
+    if len(args) != 1:
         raise Error(MENSAJES["uso"])
-    inv = next((i for i in invitaciones_recibidas() if str(i["id"]) == args[0]), None)
-    if inv is None:
-        raise Error(MENSAJES["invitacion_no_existe"])
-    gh(["api", "-X", "PATCH", f"user/repository_invitations/{inv['id']}"])
-    repo = inv["repository"]
+    if re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9._-]+", args[0]):
+        try:
+            repo = gh_json(["api", f"repos/{args[0]}"])
+        except ErrorGitHub as e:
+            if http_estado(e) == 404:
+                raise Error(MENSAJES["sin_acceso_espacio"])
+            raise
+        if not (repo.get("description") or "").startswith(DESCRIPCION_REPO):
+            raise Error(MENSAJES["invitacion_no_existe"])
+    else:
+        if not args[0].isdigit():
+            raise Error(MENSAJES["uso"])
+        inv = next((i for i in invitaciones_recibidas() if str(i["id"]) == args[0]), None)
+        if inv is None:
+            raise Error(MENSAJES["invitacion_no_existe"])
+        gh(["api", "-X", "PATCH", f"user/repository_invitations/{inv['id']}"])
+        repo = inv["repository"]
     propietario = repo["owner"]["login"]
     nombre = nombre_espacio(repo)
     if (raiz() / nombre).exists():
         nombre = f"{nombre} (de {propietario})"
-    clonar(propietario, repo["name"], raiz() / nombre, yo())
+    if (raiz() / nombre).exists():
+        raise Error(MENSAJES["ya_existe"].format(nombre))
+    try:
+        clonar(propietario, repo["name"], raiz() / nombre, yo())
+    except Error as e:
+        if isinstance(e, SinSesion):
+            raise
+        raise type(e)(MENSAJES["aceptado_sin_copia"].format(f"{propietario}/{repo['name']}"))
     salida({"espacio": nombre})
 
 
@@ -558,13 +649,15 @@ def cmd_usar(args):
     if len(args) != 2:
         raise Error(MENSAJES["uso"])
     esp = espacio(args[0])
-    ruta = args[1].strip().strip("/")
+    ruta = os.path.normpath(args[1].strip()).strip("/")
     origen_dir = esp.ruta / ruta
     campos = leer_frontmatter(origen_dir / "SKILL.md")
     nombre = campos.get("name", "")
     if not campos.get("description") or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", nombre) \
             or not origen_dir.resolve().is_relative_to(esp.ruta.resolve()):
         raise Error(MENSAJES["skill_invalida"].format(ruta))
+    if nombre in skills_sistema():
+        raise Error(MENSAJES["skill_ocupada"].format(nombre))
     destino = skills_dir() / nombre
     if destino.exists() or destino.is_symlink():
         try:

@@ -46,6 +46,7 @@ class Base(unittest.TestCase):
             "COMPARTIR_GIT_BASE": str(self.base),
             "COMPARTIR_RAIZ": str(self.raiz(usuario)),
             "COMPARTIR_SKILLS": str(self.skills(usuario)),
+            "COMPARTIR_SKILLS_SISTEMA": str(AQUI.parent / "files" / "opencode" / "skills"),
             "FALSO_GH_USUARIO": usuario,
             "FALSO_GH_DIR": str(self.tmp / "estado-gh"),
             "FALSO_GH_LOG": str(self.log),
@@ -123,6 +124,24 @@ class TestSesionYCrear(Base):
         self.assertTrue(self.git(carpeta, "config", "user.email").strip()
                         .endswith("@users.noreply.github.com"))
         self.assertIn("Espacio", self.remoto_log("ana", "3o-eso-biologia"))
+
+    def test_crear_nombre_con_barras(self):
+        for nombre in ("A/B", "../fuera", ".oculto"):
+            rc, _, err = self.compartir("ana", "crear", nombre)
+            self.assertEqual(rc, 1, nombre)
+            self.assertIn("no puede", err)
+        self.assertFalse([a for a in self.llamadas() if a[:2] == ["repo", "create"]])
+
+    def test_espacio_fuera_de_compartido(self):
+        self.ok("ana", "crear", "Fichas")
+        rc, _, err = self.compartir("ana", "guardar", "..", "x")
+        self.assertEqual(rc, 1)
+        self.assertIn("No hay ningún espacio", err)
+
+    def test_mensaje_de_error_sin_corchetes(self):
+        rc, _, err = self.compartir("ana", "guardar", "NoExiste", "x")
+        self.assertEqual(rc, 1)
+        self.assertNotIn("['", err)
 
     def test_crear_nombre_ya_existe(self):
         self.ok("ana", "crear", "Fichas")
@@ -236,16 +255,70 @@ class TestSincronizar(Base):
         ana, _ = self.espacio_compartido()
         (ana / "ficha.docx").write_bytes(b"PK offline \x00")
         remoto = self.base / "ana" / "fichas.git"
-        apartado = self.tmp / "apartado.git"
-        remoto.rename(apartado)          # GitHub inalcanzable
+        url = self.git(ana, "remote", "get-url", "origin").strip()
+        self.git(ana, "remote", "set-url", "origin", "https://127.0.0.1:9/ana/fichas.git")
         rc, _, err = self.compartir("ana", "guardar", "Fichas", "sin red")
         self.assertEqual(rc, 4)
         self.assertIn("se subirá la próxima vez", err)
         self.assertNotIn("Traceback", err)
-        apartado.rename(remoto)
+        self.git(ana, "remote", "set-url", "origin", url)
         datos = self.ok("ana", "guardar", "Fichas", "con red")
         self.assertIn("ficha.docx", datos["subidos"])
         self.assertIn("ficha.docx", self.git(remoto, "ls-tree", "-r", "--name-only", "main"))
+
+    def test_guardar_sin_acceso_no_es_sin_conexion(self):
+        ana, luis = self.espacio_compartido()
+        (luis / "nota.md").write_text("hola\n")
+        shutil.rmtree(self.base / "ana" / "fichas.git")      # borrado o sin acceso
+        rc, _, err = self.compartir("luis", "guardar", "Fichas", "nota")
+        self.assertEqual(rc, 1)
+        self.assertIn("Ya no tienes acceso a este espacio", err)
+
+    def test_guardar_tras_fetch_sin_mezclar(self):
+        ana, luis = self.espacio_compartido()
+        (ana / "x.txt").write_text("v1\n")
+        self.ok("ana", "guardar", "Fichas", "v1")
+        self.ok("luis", "traer", "Fichas")
+        (ana / "x.txt").write_text("v2\n")
+        self.ok("ana", "guardar", "Fichas", "v2")
+        self.git(luis, "fetch", "-q")                       # el agente puede hacer fetch
+        (luis / "y.txt").write_text("de luis\n")
+        datos = self.ok("luis", "guardar", "Fichas", "y")
+        self.assertEqual(datos["subidos"], ["y.txt"])
+        self.ok("ana", "traer", "Fichas")
+        self.assertEqual((ana / "x.txt").read_text(), "v2\n")
+        self.assertEqual((luis / "x.txt").read_text(), "v2\n")
+
+    def test_renombrado_en_los_dos_lados(self):
+        ana, luis = self.espacio_compartido()
+        (ana / "x.txt").write_text("contenido\n")
+        (ana / "otro.md").write_text("a\n")
+        self.ok("ana", "guardar", "Fichas", "x")
+        self.ok("luis", "traer", "Fichas")
+        self.git(ana, "mv", "x.txt", "de-ana.txt")
+        (ana / "otro.md").write_text("cambio de ana\n")
+        self.git(luis, "mv", "x.txt", "de-luis.txt")
+        (luis / "otro.md").write_text("cambio de luis\n")
+        self.ok("luis", "guardar", "Fichas", "renombro")
+        rc, datos, err = self.compartir("ana", "guardar", "Fichas", "renombro")
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("Traceback", err)
+        self.assertFalse((ana / ".git" / "MERGE_HEAD").exists())
+        for nombre in ("de-ana.txt", "de-luis.txt"):
+            self.assertEqual((ana / nombre).read_text(), "contenido\n")
+        for p in ana.rglob("*"):
+            if p.is_file() and ".git" not in p.parts:
+                self.assertNotIn("<<<<<<<", p.read_text(errors="ignore"))
+
+    def test_mezcla_a_medias_se_recupera(self):
+        ana, _ = self.espacio_compartido()
+        (ana / "a.md").write_text("a\n")
+        self.ok("ana", "guardar", "Fichas", "a")
+        # Una mezcla interrumpida que quedó a medias
+        (ana / ".git" / "MERGE_HEAD").write_text(self.git(ana, "rev-parse", "HEAD"))
+        (ana / "b.md").write_text("b\n")
+        datos = self.ok("ana", "guardar", "Fichas", "b")
+        self.assertIn("b.md", datos["subidos"])
 
     def test_estado_pendientes(self):
         ana, _ = self.espacio_compartido()
@@ -306,6 +379,13 @@ class TestAcceso(Base):
         quien = self.ok("ana", "quien", "Fichas")
         self.assertEqual(quien["pendientes"], [])
         self.assertEqual(quien["colaboradores"], [])
+
+    def test_aceptar_otra_vez_si_falta_la_carpeta(self):
+        datos = self.invitar_y_aceptar()
+        shutil.rmtree(self.raiz("luis") / datos["espacio"])
+        datos = self.ok("luis", "aceptar", "ana/fichas")
+        self.assertEqual(datos["espacio"], "Fichas")
+        self.assertTrue((self.raiz("luis") / "Fichas" / ".gitignore").is_file())
 
     def test_aceptar_clona(self):
         self.ok("ana", "crear", "Fichas")
@@ -373,6 +453,15 @@ class TestSkills(Base):
         self.assertEqual(rc, 1)
         self.assertIn("no es una skill válida", err)
         self.assertFalse(self.skills("ana").exists() and any(self.skills("ana").iterdir()))
+
+    def test_usar_nombre_de_skill_del_sistema(self):
+        ana, _ = self.espacio_compartido()
+        (ana / "falsa").mkdir()
+        (ana / "falsa" / "SKILL.md").write_text(SKILL.replace("rubricas-fp", "compartir").format(1))
+        rc, _, err = self.compartir("ana", "usar", "Fichas", "falsa")
+        self.assertEqual(rc, 1)
+        self.assertIn("Ya usas otra skill llamada compartir", err)
+        self.assertFalse((self.skills("ana") / "compartir").exists())
 
     def test_usar_nombre_ocupado(self):
         ana, _ = self.espacio_compartido()

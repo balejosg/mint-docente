@@ -94,6 +94,14 @@ if args[0] == "api":
             no_encontrado()
         salir(usuario_json(partes[1]))
 
+    if partes[0] == "repos" and len(partes) == 3 and metodo == "GET":
+        clave = f"{partes[1]}/{partes[2]}"
+        repo = estado["repos"].get(clave)
+        if repo is None or (yo != partes[1] and yo not in repo["colaboradores"]):
+            no_encontrado()
+        salir({"name": partes[2], "owner": {"login": partes[1]},
+               "description": repo["descripcion"], "full_name": clave})
+
     # Colaboradores e invitaciones (repos/{o}/{r}/...)
     if partes[0] == "repos" and len(partes) >= 4:
         clave = f"{partes[1]}/{partes[2]}"

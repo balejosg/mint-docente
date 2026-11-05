@@ -33,7 +33,7 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 7 skills en español en `/usr/share/mint-docente/` |
 | Compartir (opcional) | GitHub CLI 2.103.3 (sha256), la orden `compartir` y la skill `compartir`: espacios compartidos entre docentes en repositorios privados de su cuenta de GitHub (invitar, quitar acceso, traer, guardar sin perder versiones, usar skills de compañeros). La sesión de GitHub se inicia solo si el docente quiere, desde el menú «Conectar GitHub para compartir» |
 
-Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`), para usar `rm` y para las órdenes de `compartir` que crean, invitan, quitan, suben o activan una skill. `sudo`, `gh` y `git push` están denegados.
+Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`), para usar `rm` y para las órdenes de `compartir` que crean, invitan, quitan, aceptan, suben o activan una skill. `sudo`, `gh` y `git push` están denegados. Estas reglas son confirmaciones para el docente, no una barrera de seguridad: un agente decidido podría saltárselas por otro camino.
 
 ## Construir
 

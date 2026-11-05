@@ -12,7 +12,7 @@ Cada espacio es una carpeta en `Compartido/` dentro de la carpeta de trabajo, y 
 ## Antes de nada
 
 Ejecuta `compartir estado`.
-- **Código 3 (sin sesión):** di en una frase que hay que conectar GitHub una sola vez, ejecuta `mint-docente-github` (abre una ventana con un código; el docente lo pega en el navegador) y, cuando termine, repite `compartir estado`.
+- **Código 3 (sin sesión):** di en una frase que hay que conectar GitHub una sola vez. Abre la ventana sin esperarla: `setsid mint-docente-github >/dev/null 2>&1 &` (muestra un código que el docente pega en el navegador). Pídele que te avise cuando la ventana diga que ya puede compartir y entonces repite `compartir estado`.
 - **Código 4 (sin conexión):** díselo y no sigas con nada que necesite Internet.
 - Si el docente pregunta por su usuario de GitHub, es `usuario` en `compartir estado`. Que se lo dé a sus compañeros para que le inviten.
 
@@ -23,7 +23,7 @@ Ejecuta `compartir estado`.
 | «Comparte mi skill de rúbricas con Ana» | `compartir crear "<nombre>"` (si no hay espacio aún) → copia lo que indique a `Compartido/<nombre>/` → `compartir guardar "<nombre>" "<qué es>"` → `compartir invitar "<nombre>" <usuario>` |
 | «¿Quién tiene acceso a…?» | `compartir quien "<nombre>"` |
 | «Quita a Luis» | `compartir quitar "<nombre>" <usuario>` |
-| «Ana me ha invitado» / «¿tengo invitaciones?» | `compartir invitaciones` → `compartir aceptar <id>` |
+| «Ana me ha invitado» / «¿tengo invitaciones?» | `compartir invitaciones` → `compartir aceptar <id>` (si falla la descarga, el mensaje dice cómo repetirla: `compartir aceptar <propietario>/<espacio>`) |
 | «Trae lo último» / al volver a un espacio | `compartir traer ["<nombre>"]` |
 | «Guarda en lo compartido» | `compartir guardar "<nombre>" "<qué ha cambiado>"` |
 | «Quiero usar la skill de Luis» | ver «Skills de compañeros» |
@@ -38,6 +38,8 @@ Las órdenes devuelven JSON. Los errores llegan en una línea de español llano:
 - Pide el **usuario de GitHub** del compañero, no su correo (si das un correo, la orden lo rechaza).
 - **Todo compañero invitado puede cambiar y borrar** archivos del espacio: en una cuenta personal de GitHub no existe «solo para ver». Si el docente lo pide, explícaselo y ofrece: no invitarle y mandarle los archivos, o invitarle igualmente.
 - Solo quien creó el espacio puede invitar o quitar.
+
+Al aceptar una invitación, di quién la envía y pide confirmación: solo se aceptan invitaciones de compañeros que el docente conozca.
 
 ## Antes de guardar
 

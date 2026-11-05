@@ -17,8 +17,10 @@ fi
 
 log=$(mktemp)
 # BROWSER=true: el navegador lo abre mostrar_codigo; la entrada vacía evita esperas.
+# --insecure-storage: token en ~/.config/gh (máquina de un solo usuario) en vez del
+# llavero, que con el inicio automático está bloqueado y pediría contraseña.
 BROWSER=true gh auth login --hostname github.com --git-protocol https \
-  --web --scopes repo --skip-ssh-key </dev/null >"$log" 2>&1 &
+  --web --scopes repo --skip-ssh-key --insecure-storage </dev/null >"$log" 2>&1 &
 pid=$!
 if ! code=$(leer_codigo "$log" "$pid"); then
   kill "$pid" 2>/dev/null; rm -f "$log"

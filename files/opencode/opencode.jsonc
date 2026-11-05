@@ -26,8 +26,12 @@
     { "action": "shell", "resource": "git push *", "effect": "deny" },
 
     // Compartir con compañeros: solo con la orden compartir (gh directo, nunca).
-    // Lo que crea, invita, quita, sube o activa una skill pide confirmación.
+    // Lo que crea, invita, quita, acepta, sube o activa una skill pide confirmación.
+    // Son confirmaciones para el docente, no una barrera de seguridad.
     { "action": "shell", "resource": "gh *", "effect": "deny" },
+    { "action": "shell", "resource": "/usr/bin/gh *", "effect": "deny" },
+    { "action": "shell", "resource": "git -C * push*", "effect": "deny" },
+    { "action": "shell", "resource": "compartir aceptar*", "effect": "ask" },
     { "action": "shell", "resource": "compartir crear*", "effect": "ask" },
     { "action": "shell", "resource": "compartir invitar*", "effect": "ask" },
     { "action": "shell", "resource": "compartir quitar*", "effect": "ask" },
