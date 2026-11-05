@@ -740,3 +740,24 @@ func TestParteDanadaSeRepiteSoloUnaVez(t *testing.T) {
 		t.Errorf("descargas de la parte dañada = %d, quería 2", llamadas)
 	}
 }
+
+// Si una descarga se queda parada (ErrSinDatos), flujo la reintenta y sigue.
+func TestDescargaParadaSeReintenta(t *testing.T) {
+	e := nuevo(t)
+	original := bajar
+	t.Cleanup(func() { bajar = original })
+	paradas := 0
+	bajar = func(ctx context.Context, c *http.Client, u, d, s string, p func(int64, int64)) error {
+		if paradas == 0 {
+			paradas++
+			return fmt.Errorf("%w: context canceled", descarga.ErrSinDatos)
+		}
+		return original(ctx, c, u, d, s, p)
+	}
+	if err := e.ejecutar(t); err != nil {
+		t.Fatal(err)
+	}
+	if e.vb.orden("startvm") == nil {
+		t.Error("no llegó a arrancar tras reintentar")
+	}
+}

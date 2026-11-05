@@ -190,3 +190,86 @@ func TestReintentaErroresDeRed(t *testing.T) {
 		t.Fatalf("intentos %d", n)
 	}
 }
+
+// Un servidor (o un proxy) que deja de mandar datos a mitad del cuerpo no debe
+// colgar la descarga: el intento falla con ErrSinDatos y lo bajado se conserva
+// para seguir desde ahí.
+func TestCuerpoParado(t *testing.T) {
+	b := datos()
+	defer func(v time.Duration) { inactividad = v }(inactividad)
+	inactividad = 200 * time.Millisecond
+	parar := make(chan struct{})
+	var mu sync.Mutex
+	primera := true
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		para := primera
+		primera = false
+		mu.Unlock()
+		inicio := 0
+		if rg := r.Header.Get("Range"); rg != "" {
+			fmt.Sscanf(rg, "bytes=%d-", &inicio)
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", inicio, len(b)-1, len(b)))
+			w.Header().Set("Content-Length", strconv.Itoa(len(b)-inicio))
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+		}
+		if para {
+			w.Write(b[:1000])
+			w.(http.Flusher).Flush()
+			select { // sigue vivo, pero sin mandar nada más
+			case <-r.Context().Done():
+			case <-parar:
+			}
+			return
+		}
+		w.Write(b[inicio:])
+	}))
+	defer s.Close()
+	defer close(parar) // antes que s.Close, que espera a los manejadores
+	dest := filepath.Join(t.TempDir(), "a.part1")
+	hecho := make(chan error, 1)
+	go func() { hecho <- Bajar(context.Background(), s.Client(), s.URL, dest, suma(b), nil) }()
+	select {
+	case err := <-hecho:
+		if !errors.Is(err, ErrSinDatos) {
+			t.Fatalf("err = %v, se esperaba ErrSinDatos", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("la descarga se ha quedado colgada")
+	}
+	if st, err := os.Stat(dest + ".descargando"); err != nil || st.Size() != 1000 {
+		t.Fatalf("parcial: %v %v", st, err)
+	}
+	if err := Bajar(context.Background(), s.Client(), s.URL, dest, suma(b), nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(dest)
+	if !bytes.Equal(got, b) {
+		t.Fatal("contenido distinto")
+	}
+}
+
+// Una descarga lenta pero que sigue llegando no se corta aunque dure más que
+// el límite de inactividad.
+func TestCuerpoLentoNoSeCorta(t *testing.T) {
+	b := datos()
+	defer func(v time.Duration) { inactividad = v }(inactividad)
+	inactividad = 150 * time.Millisecond
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+		trozo := len(b) / 5
+		for i := 0; i < len(b); i += trozo {
+			fin := min(i+trozo, len(b))
+			w.Write(b[i:fin])
+			w.(http.Flusher).Flush()
+			time.Sleep(60 * time.Millisecond)
+		}
+	}))
+	defer s.Close()
+	dest := filepath.Join(t.TempDir(), "a.part1")
+	if err := Bajar(context.Background(), s.Client(), s.URL, dest, suma(b), nil); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -24,7 +25,18 @@ var (
 	ErrSuma = errors.New("la suma de comprobación no coincide")
 	// ErrSinEspacio indica que el disco se llenó al escribir.
 	ErrSinEspacio = errors.New("no queda espacio en el disco")
+	// ErrSinDatos indica que la conexión siguió abierta pero dejaron de llegar
+	// datos durante InactividadMaxima; es un error de red y se puede reintentar.
+	ErrSinDatos = errors.New("la descarga se ha quedado parada sin recibir datos")
 )
+
+// InactividadMaxima es cuánto se espera sin recibir ni un byte antes de dar
+// por perdido un intento de descarga (un proxy que sigue vivo pero ya no
+// reenvía nada, por ejemplo).
+const InactividadMaxima = 60 * time.Second
+
+// inactividad es InactividadMaxima; las pruebas la acortan.
+var inactividad = InactividadMaxima
 
 const reintentos = 3
 
@@ -116,6 +128,23 @@ func bajarDesdeCero(ctx context.Context, cli *http.Client, url, parcial string, 
 }
 
 func intentar(ctx context.Context, cli *http.Client, url, parcial string, previo int64, progreso func(int64, int64)) (int64, error) {
+	// Cada intento tiene su propio contexto: si pasan inactividad segundos sin
+	// que llegue ningún byte del cuerpo, se cancela y el intento falla con
+	// ErrSinDatos (flujo lo reintenta y sigue desde el .descargando).
+	ctx, cancelar := context.WithCancel(ctx)
+	defer cancelar()
+	var parado atomic.Bool
+	vigia := time.AfterFunc(inactividad, func() { parado.Store(true); cancelar() })
+	defer vigia.Stop()
+	hechos, err := intentarCon(ctx, cli, url, parcial, previo, progreso, func() { vigia.Reset(inactividad) })
+	if err != nil && parado.Load() {
+		return hechos, fmt.Errorf("%w (%v sin datos): %v", ErrSinDatos, inactividad, err)
+	}
+	return hechos, err
+}
+
+// intentarCon hace la petición; llegan se llama cada vez que se reciben datos.
+func intentarCon(ctx context.Context, cli *http.Client, url, parcial string, previo int64, progreso func(int64, int64), llegan func()) (int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
@@ -127,6 +156,7 @@ func intentar(ctx context.Context, cli *http.Client, url, parcial string, previo
 	if err != nil {
 		return 0, err
 	}
+	llegan() // han llegado las cabeceras: el plazo cuenta desde aquí
 	defer resp.Body.Close()
 	anadir := false
 	total := resp.ContentLength
@@ -155,6 +185,7 @@ func intentar(ctx context.Context, cli *http.Client, url, parcial string, previo
 	for {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
+			llegan()
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				w.Close()
 				return hechos, traducir(werr)
