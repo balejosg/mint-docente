@@ -49,6 +49,31 @@ Si das una materia que no está, el asistente te lo dirá: te preparará la prog
   2. Elige una carpeta de tu ordenador, ponle de nombre **Intercambio** y marca **Automontar**.
   3. Arranca la máquina: la carpeta aparece como **Intercambio** en tu carpeta personal.
 
+# Compartir con compañeros (opcional)
+
+Puedes compartir con otros docentes tus **aplicaciones, skills, instrucciones (AGENTS.md) y documentos**. Cada cosa que compartes es un **espacio**: una carpeta dentro de *Aula → Compartido* que es igual en tu máquina y en la de los compañeros que invites.
+
+**Conectar una vez.** Menú → **Conectar GitHub para compartir**. Es el mismo código que con Copilot: lo pegas en `github.com/login/device` y pulsas **Authorize**. Si no lo has hecho, el asistente te lo abrirá la primera vez que le pidas compartir algo.
+
+**Pídeselo al asistente**, por ejemplo:
+
+- «Comparte mi skill de rúbricas con Ana; su usuario de GitHub es ana-garcia.»
+- «¿Tengo invitaciones? Acepta la de Luis.»
+- «Quiero usar la skill de evaluación de Luis.»
+- «¿Hay novedades en las skills que uso?»
+- «Trae lo último del espacio de 2º de FP» · «Guarda mis cambios en lo compartido».
+- «¿Quién tiene acceso a Rúbricas?» · «Quita a Luis.»
+
+**Tu usuario de GitHub:** pregúntaselo al asistente («¿cuál es mi usuario de GitHub?») y dáselo a tus compañeros para que te inviten.
+
+**Ten en cuenta:**
+
+- Quien invitas **puede cambiar y borrar** archivos del espacio. No se pierde nada: GitHub guarda las versiones anteriores.
+- Si dos personas cambian lo mismo a la vez, el asistente junta los cambios o te enseña las dos versiones para que elijas.
+- **Skills de compañeros:** el asistente te explica qué hacen antes de usarlas, y no cambian solas cuando el compañero las modifica.
+- **Claves** (de una IA, de un servicio): no se comparten. Si una aplicación lleva una, el asistente no la sube y te propone cómo apartarla; cada uno pone la suya.
+- **No compartas datos del alumnado.** El asistente revisa los archivos antes de subirlos y te avisará, pero la responsabilidad es tuya.
+
 # Otros programas útiles
 
 - **LibreOffice** para abrir y retocar los documentos.
