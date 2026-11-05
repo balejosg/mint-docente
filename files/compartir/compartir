@@ -65,6 +65,8 @@ MENSAJES = {
     "aviso_espacio": "No he podido recuperar el espacio «{}»: {}",
     "aviso_skill_sin_version": "No he podido recuperar la skill {} en la versión que usabas: "
                                "ya no está en el espacio «{}».",
+    "aviso_skill_error": "No he podido recuperar la skill {}: no he podido escribirla en este "
+                         "equipo (¿falta espacio en el disco?).",
     "aviso_skill_propia": "Ya hay en este equipo otra skill llamada {}. No la sustituyo; la "
                           "tuya guardada está en .mint-docente/skills-propias/{}.",
     "uso": "Uso: compartir estado | crear <nombre> | invitar <espacio> <usuario> | "
@@ -288,14 +290,14 @@ def fetch(esp: Espacio) -> None:
         raise error_de_red(r)
 
 
-def nombre_version(ruta: Path, archivo: str, usuario: str) -> str:
+def nombre_version(ruta: Path, archivo: str, usuario: str, ocupados=frozenset()) -> str:
     p = Path(archivo)
     base = p.stem if p.suffix else p.name
     n = 1
     while True:
         extra = "" if n == 1 else f" {n}"
         candidato = str(p.with_name(f"{base} (versión de {usuario}){extra}{p.suffix}"))
-        if not (ruta / candidato).exists():
+        if not (ruta / candidato).exists() and candidato not in ocupados:
             return candidato
         n += 1
 
@@ -948,21 +950,52 @@ def confirmar_locales_aula(carpeta: Path) -> None:
         git(carpeta, "commit", "-q", "-m", "Cambios locales antes de traer")
 
 
+def apartar_no_seguidos(esp: Espacio) -> list[list[str]]:
+    """git sobrescribe sin avisar los archivos ignorados (los enormes, .env…) si
+    GitHub trae uno con la misma ruta. Antes de mezclar, cada archivo local que git
+    no sigue y choca con lo que llega (con otro contenido) pasa a «… (versión de
+    <usuario>)…». Devuelve las parejas [archivo, copia] para dos_versiones."""
+    carpeta = esp.ruta
+    llegan = set(nombres(git(carpeta, "ls-tree", "-r", "-z", "--name-only", REMOTO).stdout))
+    seguidos = set(nombres(git(carpeta, "ls-files", "-z").stdout))
+    rutas = set(llegan)
+    for a in llegan:                                 # «a/b» que llega choca con un archivo «a»
+        rutas.update(str(p) for p in Path(a).parents if str(p) != ".")
+    parejas = []
+    for a in sorted(rutas):
+        local = carpeta / a
+        if a in seguidos or not (local.is_file() or local.is_symlink()):
+            continue
+        if a in llegan and not local.is_symlink() and \
+                git(carpeta, "hash-object", "--", a).stdout.strip() == \
+                git(carpeta, "rev-parse", f"{REMOTO}:{a}").stdout.strip():
+            continue                                 # mismo contenido: no se pierde nada
+        copia = nombre_version(carpeta, a, esp.usuario, ocupados=rutas)
+        local.rename(carpeta / copia)
+        parejas.append([a, copia])
+    return parejas
+
+
 def traer_aula(carpeta: Path) -> dict:
     esp = Espacio(carpeta)
     fetch(esp)
     if not hay_remoto(esp):
         return {"nuevos": [], "mezclados": [], "dos_versiones": []}
+    if git(carpeta, "merge-base", "--is-ancestor", REMOTO, "HEAD", comprobar=False).returncode == 0:
+        return {"nuevos": [], "mezclados": [], "dos_versiones": []}    # nada nuevo en GitHub
+    apartados = apartar_no_seguidos(esp)
     if git(carpeta, "rev-parse", "-q", "--verify", "HEAD", comprobar=False).returncode != 0:
-        # Nada local que confirmar: se trae tal cual. Si un archivo ignorado de este
-        # equipo se llama igual que uno de GitHub, git se niega y no se pierde nada.
+        # Nada local confirmado: se trae tal cual (lo que chocaba ya está apartado).
         nuevos = sorted(nombres(git(carpeta, "ls-tree", "-r", "-z", "--name-only",
                                     REMOTO).stdout))
         r = git(carpeta, "merge", "-q", "--ff-only", REMOTO, comprobar=False)
         if r.returncode != 0:
             raise Error(MENSAJES["mezcla"].format(ultima_linea(r.stderr or r.stdout)))
-        return {"nuevos": nuevos, "mezclados": [], "dos_versiones": []}
-    return mezclar(esp, sin_historia_comun=True)
+        res = {"nuevos": nuevos, "mezclados": [], "dos_versiones": []}
+    else:
+        res = mezclar(esp, sin_historia_comun=True)
+    res["dos_versiones"] = apartados + res["dos_versiones"]
+    return res
 
 
 def recuperar_espacios(usuario: dict, avisos: list[str]) -> list[str]:
@@ -1026,20 +1059,34 @@ def recuperar_skills_companeros(avisos: list[str]) -> list[str]:
             continue
         if destino.exists() or destino.is_symlink():
             try:
-                previo = json.loads((destino / ".origen").read_text())
-            except (OSError, json.JSONDecodeError):
+                previo = json.loads((destino / ".origen").read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 previo = {}
             if previo != origen:
                 avisos.append(MENSAJES["skill_ocupada"].format(nombre))
             continue
         esp_ruta = raiz() / espacio_
-        if not (esp_ruta / ".git").is_dir() or not re.fullmatch(r"[0-9a-f]{40,64}", version) or \
-                git(esp_ruta, "cat-file", "-t", version, comprobar=False).stdout.strip() != "tree":
+
+        def es_arbol() -> bool:
+            return git(esp_ruta, "cat-file", "-t", version, comprobar=False).stdout.strip() == "tree"
+        valida = (esp_ruta / ".git").is_dir() and re.fullmatch(r"[0-9a-f]{40,64}", version)
+        if valida and not es_arbol():
+            git(esp_ruta, "fetch", "-q", "origin", comprobar=False)   # copia antigua del espacio
+        if not valida or not es_arbol():
             avisos.append(MENSAJES["aviso_skill_sin_version"].format(nombre, espacio_))
             continue
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        extraer_version(esp_ruta, version, destino)
-        (destino / ".origen").write_text(json.dumps(origen, ensure_ascii=False))
+        extraida = False
+        try:
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            extraer_version(esp_ruta, version, destino)
+            extraida = True
+            (destino / ".origen").write_text(json.dumps(origen, ensure_ascii=False),
+                                             encoding="utf-8")
+        except (OSError, subprocess.CalledProcessError, tarfile.TarError):
+            if extraida:                             # la acabamos de crear: sin .origen no vale
+                shutil.rmtree(destino, ignore_errors=True)
+            avisos.append(MENSAJES["aviso_skill_error"].format(nombre))
+            continue
         recuperadas.append(nombre)
     return recuperadas
 

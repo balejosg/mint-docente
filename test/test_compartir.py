@@ -780,6 +780,57 @@ class MiTrabajoTraer(BaseMiTrabajo):
         self.assertFalse([a for a in archivos if a.startswith("Compartido")], archivos)
         self.assertTrue((self.aula("ana") / ".env").is_file())
 
+    def test_traer_no_pisa_ignorado_grande(self):
+        for con_otros_archivos in (False, True):        # HEAD sin commits / historias sin relación
+            with self.subTest(con_otros_archivos=con_otros_archivos):
+                if self.aula("ana").exists():
+                    self.borrar_equipo()
+                shutil.rmtree(self.base, ignore_errors=True)
+                shutil.rmtree(self.tmp / "estado-gh", ignore_errors=True)
+                self.base.mkdir()
+                self.aula("ana").mkdir(parents=True)
+                (self.aula("ana") / "clase.mp4").write_bytes(b"video pequeno \x00")
+                self.ok("ana", "mi-trabajo", "guardar", "Equipo 1")
+                self.borrar_equipo()
+                self.aula("ana").mkdir(parents=True)
+                grande = self.aula("ana") / "clase.mp4"
+                with open(grande, "wb") as f:
+                    f.truncate(96 * 1024 * 1024)
+                if con_otros_archivos:
+                    (self.aula("ana") / "notas.md").write_text("local\n")
+                datos = self.ok("ana", "mi-trabajo", "traer")
+                copia = self.aula("ana") / "clase (versión de ana).mp4"
+                self.assertEqual(grande.read_bytes(), b"video pequeno \x00")
+                self.assertEqual(copia.stat().st_size, 96 * 1024 * 1024)
+                self.assertIn(["clase.mp4", "clase (versión de ana).mp4"], datos["dos_versiones"])
+                guardado = self.ok("ana", "mi-trabajo", "guardar", "Equipo 2")
+                self.assertEqual(guardado["no_subidos"],
+                                 [{"archivo": "clase (versión de ana).mp4", "motivo": "grande"}])
+                self.assertEqual(copia.stat().st_size, 96 * 1024 * 1024)
+
+    def test_traer_avisos_de_skills(self):
+        self.preparar_ana()
+        shutil.rmtree(self.skills("ana") / "rubricas-fp")
+        (self.skills("ana") / "rubricas-fp").mkdir()
+        (self.skills("ana") / "rubricas-fp" / "SKILL.md").write_text("otra distinta\n")
+        meta = self.aula("ana") / ".mint-docente" / "skills-companeros.json"
+        lista = json.loads(meta.read_text())
+        lista += [{"skill": "compartir", "espacio": "Recursos", "ruta": "skills/rubricas-fp",
+                   "version": lista[0]["version"]},
+                  {"skill": "perdida", "espacio": "Recursos", "ruta": "skills/perdida",
+                   "version": "0" * 40}]
+        meta.write_text(json.dumps(lista))
+        datos = self.ok("ana", "mi-trabajo", "traer")
+        self.assertEqual(datos["skills_recuperadas"], [])
+        avisos = " | ".join(datos["avisos"])
+        self.assertEqual(len(datos["avisos"]), 3, avisos)
+        self.assertIn("Ya usas otra skill llamada rubricas-fp", avisos)
+        self.assertIn("Ya usas otra skill llamada compartir", avisos)
+        self.assertIn("No he podido recuperar la skill perdida", avisos)
+        self.assertEqual((self.skills("ana") / "rubricas-fp" / "SKILL.md").read_text(),
+                         "otra distinta\n")
+        self.assertFalse((self.skills("ana") / "compartir").exists())
+
     def test_traer_espacio_sin_acceso(self):
         self.preparar_ana()
         self.ok("luis", "quitar", "Recursos", "ana")
