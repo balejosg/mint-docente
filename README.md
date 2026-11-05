@@ -99,8 +99,3 @@ docs/superpowers/          notas históricas del currículo propio, ya sustituid
 - **Sin cuenta conectada, OpenCode usa modelos gratuitos de OpenCode Zen** (p. ej. *Big Pickle*), así que funciona aunque el docente omita el asistente.
 - **Asistente de Copilot:** `opencode auth login github-copilot --method device --answer deploymentType=github.com` imprime `Enter code: XXXX-XXXX` sin preguntar nada. El asistente lee ese código y lo muestra.
 - **`opencode run` sin terminal lee la entrada estándar:** para usarlo en scripts, añade `</dev/null`.
-
-## Pendiente
-
-- Probar el inicio de sesión real con una cuenta de **GitHub Copilot Pro para educadores**.
-- Elegir el modelo por defecto de Copilot: idealmente uno que no consuma peticiones *premium*. Se fijaría con `"model"` en `files/opencode/opencode.jsonc`.
