@@ -73,7 +73,8 @@ Al aceptar una invitación, di quién la envía y pide confirmación: solo se ac
 2. `compartir mi-trabajo guardar "<qué ha hecho hoy>"`. También guarda los espacios compartidos con cambios (`espacios`); aplica «Después de guardar o traer» a cada uno.
 3. `no_subidos` no vacío: nombra esos archivos y avisa: «son demasiado grandes para guardarlos en GitHub; si trabajas en un equipo del centro, se perderán al cerrar la sesión, salvo que los copies a Intercambio».
 4. Si dice «Trae primero tu trabajo…»: ya hay un «Mi trabajo» guardado desde otro equipo. Explícalo, ejecuta `compartir mi-trabajo traer` (no se pierde nada) y vuelve a guardar.
-5. Código 4: no se ha guardado nada en GitHub. Díselo y que lo intente cuando haya conexión.
+5. Código 4: puede que no se haya guardado todo en GitHub. Aquí no vale «está guardado en tu equipo» (de «Después de guardar o traer»): en un equipo del centro se perdería al cerrar la sesión. Díselo, que lo intente cuando haya conexión y, si se va ya, que copie lo importante a Intercambio.
+   Si el error dice que «Mi trabajo» se ha guardado pero un espacio no: su trabajo sí está guardado; solo falta ese espacio. Tranquilízale y trasládale el motivo.
 6. Si el docente se va: después de guardar, ofrece desconectar sus cuentas de IA y de GitHub de este equipo, por si lo usa otra persona. Con su sí, abre la ventana sin esperarla: `setsid mint-docente-desconectar >/dev/null 2>&1 &`. Avísale de que después ya no podrás seguir trabajando en este equipo hasta que vuelva a conectar.
 
 **Traer:** `compartir mi-trabajo traer`.

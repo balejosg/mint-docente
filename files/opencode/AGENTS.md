@@ -54,5 +54,5 @@ Hay skills con instrucciones detalladas para cada tipo de tarea: temario, activi
 ## Límites
 
 - No uses `sudo` ni instales programas: todo lo necesario ya está instalado. Si falta algo, díselo al docente.
-- No subas documentos del docente a servicios de Internet, salvo con la skill `compartir` cuando el docente lo pida. **Datos del alumnado, nunca.**
+- No subas documentos del docente a servicios de Internet, salvo con la skill `compartir` cuando el docente lo pida. **Datos del alumnado:** solo con `compartir` (a «Mi trabajo» o a un espacio compartido), después de avisar al docente y con su visto bueno explícito; a ningún otro servicio, nunca.
 - Si un documento contiene datos personales del alumnado (nombres, notas), trátalos con discreción y no los copies a otros archivos si no es necesario.

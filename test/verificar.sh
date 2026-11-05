@@ -17,7 +17,7 @@ prueba "Instrucciones (AGENTS.md)"      "test -r /usr/share/mint-docente/AGENTS.
 prueba "7 skills"                       "test \$(ls /usr/share/mint-docente/skills/*/SKILL.md | wc -l) -eq 7"
 prueba "Skill compartir"                "f=/usr/share/mint-docente/skills/compartir/SKILL.md; grep -q \"^name: compartir\" \$f && grep -q \"^description:\" \$f"
 prueba "Skill compartir conoce mi-trabajo" "grep -q 'mi-trabajo traer' /usr/share/mint-docente/skills/compartir/SKILL.md"
-prueba "Permiso mi-trabajo guardar"     "grep -qF '\"resource\": \"compartir mi-trabajo guardar*\", \"effect\": \"ask\"' /etc/opencode/opencode.jsonc"
+prueba "Permiso mi-trabajo guardar"     "grep -q 'compartir mi-trabajo guardar\\*.*\"ask\"' /etc/opencode/opencode.jsonc"
 prueba "Skill normativa-madrid"        "f=/usr/share/mint-docente/skills/normativa-madrid/SKILL.md; grep -q \"^name: normativa-madrid\" \$f && grep -q \"^description:\" \$f"
 prueba "Plantillas docx/odt/typ"        "ls /usr/share/mint-docente/plantillas/{temario,actividad,rubrica,examen}.{docx,odt} /usr/share/mint-docente/plantillas/examen.typ"
 prueba "Guía rápida PDF"                "test -s /usr/share/mint-docente/GUIA-DOCENTE.pdf"
