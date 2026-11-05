@@ -55,17 +55,24 @@ MENSAJES = {
     "skill_invalida": "«{}» no es una skill válida: necesita un SKILL.md que empiece con "
                       "--- name: … description: … ---.",
     "skill_ocupada": "Ya usas otra skill llamada {}. No la sustituyo.",
+    "mi_trabajo_en_otro_equipo": "En GitHub ya tienes «Mi trabajo» guardado desde otro equipo. "
+                                 "Trae primero tu trabajo y después vuelve a guardar.",
+    "espacio_sin_guardar": "«Mi trabajo» se ha guardado, pero el espacio «{}» no: {}",
     "uso": "Uso: compartir estado | crear <nombre> | invitar <espacio> <usuario> | "
            "quitar <espacio> <usuario> | quien <espacio> | invitaciones | aceptar <id> | "
-           "traer [<espacio>] | guardar <espacio> <descripción> | usar <espacio> <ruta-skill> | skills",
+           "traer [<espacio>] | guardar <espacio> <descripción> | usar <espacio> <ruta-skill> | skills | "
+           "mi-trabajo estado | mi-trabajo guardar <descripción>",
 }
 
 DESCRIPCION_REPO = "Espacio compartido de Mint Docente"
+REPO_MI_TRABAJO = "mint-docente-mi-trabajo"
+DESCRIPCION_MI_TRABAJO = "Mi trabajo de Mint Docente"   # no empieza por DESCRIPCION_REPO
 TEMA = "mint-docente"
 LIMITE_BYTES = 95 * 1024 * 1024
 REINTENTOS = 3
 TIEMPO_MAX = 300
 REMOTO = "origin/main"
+EXCLUDE_AULA = "/Compartido/\n"   # además de .gitignore: los espacios nunca van a «Mi trabajo»
 GITIGNORE = "\n".join([
     "# Archivos que no se comparten",
     ".~lock.*#", "~$*", "*.tmp", ".DS_Store", "Thumbs.db",
@@ -112,6 +119,16 @@ def raiz() -> Path:
     if not docs or docs == str(Path.home()):
         docs = str(Path.home() / "Documentos")
     return Path(docs) / "Proyecto predeterminado" / "Compartido"
+
+
+def aula() -> Path:
+    """Carpeta de trabajo del docente (el Aula): la que contiene Compartido/."""
+    return raiz().parent
+
+
+def datos_mi_trabajo() -> Path:
+    """Metadatos de «Mi trabajo»: espacios, skills de compañeros y skills propias."""
+    return aula() / ".mint-docente"
 
 
 def git_base() -> str:
@@ -333,8 +350,25 @@ def mezclar(esp: Espacio) -> dict:
     return res
 
 
-def comprobar_salientes(esp: Espacio) -> None:
-    """Rechaza archivos enormes y claves secretas en lo que se va a subir."""
+def escapar_exclude(archivo: str) -> str:
+    """Ruta literal, anclada a la raíz, para .git/info/exclude."""
+    texto = re.sub(r"([\\*?\[])", r"\\\1", archivo)
+    if texto.endswith(" "):
+        texto = texto[:-1] + "\\ "
+    return "/" + texto
+
+
+def excluir(ruta: Path, archivos: list[str]) -> None:
+    with open(ruta / ".git" / "info" / "exclude", "a", encoding="utf-8") as f:
+        for a in archivos:
+            f.write(escapar_exclude(a) + "\n")
+
+
+def comprobar_salientes(esp: Espacio, grandes: str = "error") -> list[str]:
+    """Rechaza claves secretas en lo que se va a subir. Los archivos enormes dan
+    error (grandes="error") o se sacan del commit y se excluyen (grandes="excluir");
+    devuelve los excluidos."""
+    excluidos = []
     if hay_remoto(esp):
         base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
         cambiados = nombres(git(esp.ruta, "diff", "-z", "--cached", "--name-only",
@@ -346,7 +380,12 @@ def comprobar_salientes(esp: Espacio) -> None:
         if not ruta.is_file():
             continue
         if ruta.stat().st_size > LIMITE_BYTES:
-            raise Error(MENSAJES["grande"].format(archivo))
+            if grandes != "excluir":
+                raise Error(MENSAJES["grande"].format(archivo))
+            git(esp.ruta, "rm", "-q", "--cached", "--", archivo)
+            excluir(esp.ruta, [archivo])
+            excluidos.append(archivo)
+            continue
         with open(ruta, "rb") as f:
             datos = f.read(2 * 1024 * 1024)
         if b"\0" in datos[:8000]:
@@ -354,6 +393,7 @@ def comprobar_salientes(esp: Espacio) -> None:
         for n, linea in enumerate(datos.decode("utf-8", "ignore").splitlines(), 1):
             if any(p.search(linea) for p in PATRONES_CLAVE):
                 raise Error(MENSAJES["clave"].format(f"{archivo}:{n}"))
+    return excluidos
 
 
 def skills_dir() -> Path:
@@ -426,18 +466,23 @@ def exigir_propietario(esp: Espacio, accion: str) -> None:
 
 
 # ---------------------------------------------------------------- órdenes
+def pendientes(esp: Espacio) -> int:
+    """Cambios locales sin guardar más commits que aún no están en GitHub."""
+    sucio = len(nombres(git(esp.ruta, "status", "--porcelain", "-z",
+                            "--untracked-files=all").stdout))
+    adelante = 0
+    if hay_remoto(esp):
+        adelante = int(git(esp.ruta, "rev-list", "--count",
+                           f"{REMOTO}..HEAD").stdout.strip() or 0)
+    return sucio + adelante
+
+
 def cmd_estado(args):
     usuario = yo()["login"]
     lista = []
     for esp in espacios_locales():
-        sucio = len(nombres(git(esp.ruta, "status", "--porcelain", "-z",
-                                "--untracked-files=all").stdout))
-        adelante = 0
-        if hay_remoto(esp):
-            adelante = int(git(esp.ruta, "rev-list", "--count",
-                               f"{REMOTO}..HEAD").stdout.strip() or 0)
         lista.append({"nombre": esp.nombre, "propietario": esp.propietario,
-                      "pendientes": sucio + adelante})
+                      "pendientes": pendientes(esp)})
     salida({"usuario": usuario, "espacios": lista})
 
 
@@ -481,26 +526,44 @@ def limpiar_mezcla(esp: Espacio) -> None:
             git(esp.ruta, "reset", "-q")
 
 
-def preparar_local(esp: Espacio, mensaje: str) -> None:
-    """Junta en un único commit local todo lo que aún no está en GitHub."""
+def excluir_grandes_previos(ruta: Path) -> list[str]:
+    """Antes de `git add`, excluye los archivos nuevos o cambiados de más de
+    LIMITE_BYTES (así git ni siquiera los copia). Reescribe .git/info/exclude."""
+    (ruta / ".git" / "info").mkdir(parents=True, exist_ok=True)
+    (ruta / ".git" / "info" / "exclude").write_text(EXCLUDE_AULA, encoding="utf-8")
+    candidatos = set(nombres(git(ruta, "ls-files", "-z", "--others", "--exclude-standard").stdout))
+    modificados = set(nombres(git(ruta, "ls-files", "-z", "--modified").stdout))
+    grandes = sorted(a for a in candidatos | modificados
+                     if (ruta / a).is_file() and (ruta / a).stat().st_size > LIMITE_BYTES)
+    for a in sorted(set(grandes) & modificados):
+        git(ruta, "rm", "-q", "--cached", "--", a)
+    excluir(ruta, grandes)
+    return grandes
+
+
+def preparar_local(esp: Espacio, mensaje: str, grandes: str = "error") -> list[str]:
+    """Junta en un único commit local todo lo que aún no está en GitHub.
+    Devuelve los archivos grandes que se han dejado fuera (grandes="excluir")."""
     limpiar_mezcla(esp)
+    excluidos = excluir_grandes_previos(esp.ruta) if grandes == "excluir" else []
     git(esp.ruta, "add", "-A")
     if hay_remoto(esp):
         # Solo se juntan los commits propios: el punto de partida es lo último
         # que este equipo mezcló de GitHub, no origin/main (que puede ir por delante).
         base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
         git(esp.ruta, "reset", "-q", "--soft", base)
-    comprobar_salientes(esp)
+    excluidos += comprobar_salientes(esp, grandes)
     if git(esp.ruta, "diff", "--cached", "--quiet", comprobar=False).returncode != 0:
         git(esp.ruta, "commit", "-q", "-m", mensaje)
+    return sorted(set(excluidos))
 
 
-def cmd_guardar(args):
-    if len(args) < 2:
-        raise Error(MENSAJES["uso"])
-    esp = espacio(args[0])
-    descripcion = " ".join(args[1:]).strip() or "Cambios"
-    preparar_local(esp, descripcion)
+def guardar_repo(esp_o_ruta: "Espacio | Path", descripcion: str, grandes: str = "error") -> dict:
+    """Guarda un repositorio (un espacio o el Aula): commit local, mezcla con lo
+    de GitHub sin perder nada y subida. Con grandes="excluir", los archivos de
+    más de LIMITE_BYTES no se suben y se devuelven en "no_subidos"."""
+    esp = esp_o_ruta if isinstance(esp_o_ruta, Espacio) else Espacio(Path(esp_o_ruta))
+    excluidos = preparar_local(esp, descripcion, grandes)
     total = {"subidos": [], "mezclados": [], "dos_versiones": []}
     for _ in range(REINTENTOS + 1):
         fetch(esp)
@@ -522,7 +585,16 @@ def cmd_guardar(args):
     else:
         raise Error(MENSAJES["git"].format("otros compañeros están guardando a la vez; "
                                            "inténtalo de nuevo en un momento"))
-    salida(total)
+    if grandes == "excluir":
+        total["no_subidos"] = [{"archivo": a, "motivo": "grande"} for a in excluidos]
+    return total
+
+
+def cmd_guardar(args):
+    if len(args) < 2:
+        raise Error(MENSAJES["uso"])
+    esp = espacio(args[0])
+    salida(guardar_repo(esp, " ".join(args[1:]).strip() or "Cambios"))
 
 
 def traer_uno(esp: Espacio) -> dict:
@@ -688,7 +760,131 @@ def cmd_skills(args):
     salida(lista)
 
 
+# ---------------------------------------------------------------- mi trabajo
+def repo_mi_trabajo_en_github(login: str) -> bool:
+    try:
+        gh(["api", f"repos/{login}/{REPO_MI_TRABAJO}"])
+    except ErrorGitHub as e:
+        if http_estado(e) == 404:
+            return False
+        raise
+    return True
+
+
+def contar_archivos_sin_repo(carpeta: Path) -> int:
+    """Archivos del Aula cuando aún no es un repositorio (sin Compartido/ ni metadatos)."""
+    if not carpeta.is_dir():
+        return 0
+    n = 0
+    for actual, dirs, archivos in os.walk(carpeta):
+        if Path(actual) == carpeta:
+            dirs[:] = [d for d in dirs if d not in ("Compartido", ".mint-docente", ".git")]
+        n += len(archivos)
+    return n
+
+
+def mi_trabajo_estado(args):
+    login = yo()["login"]
+    en_github = repo_mi_trabajo_en_github(login)
+    local = (aula() / ".git").is_dir()
+    n = pendientes(Espacio(aula())) if local else contar_archivos_sin_repo(aula())
+    salida({"en_github": en_github, "local": local, "pendientes": n})
+
+
+def preparar_repo_aula(usuario: dict) -> None:
+    """Crea en GitHub el repositorio de «Mi trabajo» y convierte el Aula en su copia local."""
+    login = usuario["login"]
+    if not repo_mi_trabajo_en_github(login):
+        try:
+            gh(["repo", "create", REPO_MI_TRABAJO, "--private",
+                "--description", DESCRIPCION_MI_TRABAJO])
+        except ErrorGitHub as e:
+            if "already exists" not in str(e):
+                raise
+    carpeta = aula()
+    carpeta.mkdir(parents=True, exist_ok=True)
+    if not (carpeta / ".git").is_dir():
+        git(carpeta, "init", "-q")
+        git(carpeta, "symbolic-ref", "HEAD", "refs/heads/main")
+    configurar_identidad(carpeta, usuario)
+    url = f"{git_base()}/{login}/{REPO_MI_TRABAJO}.git"
+    actual = git(carpeta, "remote", "get-url", "origin", comprobar=False)
+    if actual.returncode != 0:
+        git(carpeta, "remote", "add", "origin", url)
+    elif actual.stdout.strip() != url:
+        git(carpeta, "remote", "set-url", "origin", url)
+    gitignore = carpeta / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(GITIGNORE + "Compartido/\n", encoding="utf-8")
+    elif "Compartido/" not in gitignore.read_text(encoding="utf-8").splitlines():
+        with open(gitignore, "a", encoding="utf-8") as f:
+            f.write("\nCompartido/\n")
+    # «Mi trabajo» guardado desde otro equipo y aún no traído aquí: no se mezcla
+    # a ciegas; primero hay que traerlo.
+    esp = Espacio(carpeta)
+    fetch(esp)
+    if hay_remoto(esp) and git(carpeta, "merge-base", "HEAD", REMOTO,
+                               comprobar=False).returncode != 0:
+        raise Error(MENSAJES["mi_trabajo_en_otro_equipo"])
+
+
+def escribir_json(ruta: Path, datos) -> None:
+    ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def escribir_metadatos() -> None:
+    d = datos_mi_trabajo()
+    d.mkdir(parents=True, exist_ok=True)
+    escribir_json(d / "espacios.json",
+                  [{"nombre": e.nombre, "propietario": e.propietario, "repo": e.repo}
+                   for e in espacios_locales()])
+    escribir_json(d / "skills-companeros.json",
+                  [{"skill": p.name, "espacio": o.get("espacio"), "ruta": o.get("ruta"),
+                    "version": o.get("version")} for p, o in skills_en_uso()])
+    propias = d / "skills-propias"
+    shutil.rmtree(propias, ignore_errors=True)
+    propias.mkdir()
+    origen = skills_dir()
+    if origen.is_dir():
+        for p in sorted(origen.iterdir()):
+            if p.name.startswith(".") or not p.is_dir() or (p / ".origen").exists():
+                continue
+            shutil.copytree(p, propias / p.name, symlinks=False, ignore_dangling_symlinks=True,
+                            ignore=shutil.ignore_patterns(".git"))
+
+
+def mi_trabajo_guardar(args):
+    if not args:
+        raise Error(MENSAJES["uso"])
+    descripcion = " ".join(args).strip() or "Cambios"
+    preparar_repo_aula(yo())
+    escribir_metadatos()
+    total = guardar_repo(aula(), descripcion, grandes="excluir")
+    total["espacios"] = []
+    for esp in espacios_locales():
+        if pendientes(esp) == 0:
+            continue
+        try:
+            res = guardar_repo(esp, descripcion)
+        except (SinSesion, SinConexion):
+            raise
+        except Error as e:
+            raise Error(MENSAJES["espacio_sin_guardar"].format(esp.nombre, e))
+        total["espacios"].append({"nombre": esp.nombre, **res})
+    salida(total)
+
+
+SUBORDENES_MI_TRABAJO = {"estado": mi_trabajo_estado, "guardar": mi_trabajo_guardar}
+
+
+def cmd_mi_trabajo(args):
+    if not args or args[0] not in SUBORDENES_MI_TRABAJO:
+        raise Error(MENSAJES["uso"])
+    SUBORDENES_MI_TRABAJO[args[0]](args[1:])
+
+
 ORDENES = {
+    "mi-trabajo": cmd_mi_trabajo,
     "invitar": cmd_invitar,
     "quitar": cmd_quitar,
     "quien": cmd_quien,

@@ -480,5 +480,149 @@ class TestSkills(Base):
         self.assertEqual((propia / "SKILL.md").read_text(), "mía\n")
 
 
+REPO_MI_TRABAJO = "mint-docente-mi-trabajo"
+
+
+class MiTrabajo(Base):
+    def aula(self, usuario):
+        return self.raiz(usuario).parent
+
+    def bare(self, usuario="ana"):
+        return self.base / usuario / f"{REPO_MI_TRABAJO}.git"
+
+    def archivos_remotos(self, usuario="ana"):
+        return self.git(self.bare(usuario), "-c", "core.quotepath=off", "ls-tree", "-r", "--name-only",
+                        "main").splitlines()
+
+    def test_estado_sin_repo(self):
+        datos = self.ok("ana", "mi-trabajo", "estado")
+        self.assertFalse(datos["en_github"])
+        self.assertFalse(datos["local"])
+
+    def test_estado_tras_guardar(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        self.assertEqual(self.ok("ana", "mi-trabajo", "estado"),
+                         {"en_github": True, "local": True, "pendientes": 0})
+        (self.aula("ana") / "otra.md").write_text("adiós\n")
+        self.assertEqual(self.ok("ana", "mi-trabajo", "estado")["pendientes"], 1)
+
+    def test_estado_sin_sesion(self):
+        (self.tmp / "estado-gh").mkdir()
+        (self.tmp / "estado-gh" / "sin_sesion").touch()
+        rc, _, err = self.compartir("ana", "mi-trabajo", "estado")
+        self.assertEqual(rc, 3)
+        self.assertIn("Conectar GitHub para compartir", err)
+
+    def test_guardar_crea_repo_privado(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        self.assertIn("notas.md", datos["subidos"])
+        creates = [a for a in self.llamadas() if a[:2] == ["repo", "create"]]
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(creates[0][2], REPO_MI_TRABAJO)
+        self.assertIn("--private", creates[0])
+        self.assertIn("Mi trabajo de Mint Docente", creates[0])
+        archivos = self.archivos_remotos()
+        self.assertIn("notas.md", archivos)
+        self.assertIn(".mint-docente/espacios.json", archivos)
+        # La segunda vez no vuelve a crearlo.
+        (self.aula("ana") / "notas.md").write_text("hola de nuevo\n")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Segunda vez")
+        self.assertEqual(datos["subidos"], ["notas.md"])
+        self.assertEqual(len([a for a in self.llamadas() if a[:2] == ["repo", "create"]]), 1)
+
+    def test_guardar_no_sube_compartido(self):
+        self.ok("ana", "crear", "Rúbricas")
+        (self.raiz("ana") / "Rúbricas" / "r1.md").write_text("rúbrica\n")
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Todo")
+        archivos = self.archivos_remotos()
+        self.assertIn("notas.md", archivos)
+        self.assertFalse([a for a in archivos if a.startswith("Compartido")], archivos)
+        espacios = json.loads(self.git(self.bare(), "show", "main:.mint-docente/espacios.json"))
+        self.assertEqual(espacios, [{"nombre": "Rúbricas", "propietario": "ana", "repo": "rubricas"}])
+
+    def test_guardar_excluye_grande(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        with open(self.aula("ana") / "vídeo grande.mp4", "wb") as f:
+            f.truncate(96 * 1024 * 1024)
+        rc, datos, err = self.compartir("ana", "mi-trabajo", "guardar", "Con vídeo")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(datos["no_subidos"], [{"archivo": "vídeo grande.mp4", "motivo": "grande"}])
+        archivos = self.archivos_remotos()
+        self.assertIn("notas.md", archivos)
+        self.assertNotIn("vídeo grande.mp4", archivos)
+        # La vez siguiente lo sigue avisando.
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Otra vez")
+        self.assertEqual(datos["no_subidos"], [{"archivo": "vídeo grande.mp4", "motivo": "grande"}])
+
+    def test_guardar_rechaza_clave(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        (self.aula("ana") / "app.js").write_text("const API_KEY = \"" + CLAVE_FALSA + "\";\n")
+        rc, _, err = self.compartir("ana", "mi-trabajo", "guardar", "Con clave")
+        self.assertEqual(rc, 1)
+        self.assertIn("clave secreta", err)
+        self.assertIn("app.js:1", err)
+        self.assertNotIn(CLAVE_FALSA, err)
+        if self.bare().exists():
+            self.assertEqual(self.git(self.bare(), "for-each-ref").strip(), "")
+
+    def test_guardar_skills_propias_y_de_companeros(self):
+        ana, _ = self.espacio_compartido()
+        (ana / "skills" / "rubricas-fp").mkdir(parents=True)
+        (ana / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(1))
+        self.ok("ana", "guardar", "Fichas", "skill")
+        self.ok("luis", "traer", "Fichas")
+        usada = self.ok("luis", "usar", "Fichas", "skills/rubricas-fp")
+        propia = self.skills("luis") / "rubricas"
+        propia.mkdir(parents=True)
+        (propia / "SKILL.md").write_text("---\nname: rubricas\ndescription: mía\n---\n")
+        self.ok("luis", "mi-trabajo", "guardar", "Skills")
+        bare = self.bare("luis")
+        archivos = self.archivos_remotos("luis")
+        self.assertIn(".mint-docente/skills-propias/rubricas/SKILL.md", archivos)
+        self.assertFalse([a for a in archivos if "skills-propias/rubricas-fp" in a], archivos)
+        companeros = json.loads(self.git(bare, "show", "main:.mint-docente/skills-companeros.json"))
+        self.assertEqual(companeros, [{"skill": "rubricas-fp", "espacio": "Fichas",
+                                       "ruta": "skills/rubricas-fp", "version": usada["version"]}])
+
+    def test_guardar_tambien_espacios_pendientes(self):
+        ana, _ = self.espacio_compartido()
+        self.ok("ana", "crear", "Otro")
+        (ana / "ficha.md").write_text("ficha\n")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Todo")
+        self.assertEqual(len(datos["espacios"]), 1)
+        self.assertEqual(datos["espacios"][0]["nombre"], "Fichas")
+        self.assertEqual(datos["espacios"][0]["subidos"], ["ficha.md"])
+        self.assertIn("ficha.md", self.git(self.base / "ana" / "fichas.git",
+                                           "ls-tree", "-r", "--name-only", "main"))
+
+    def test_mi_trabajo_no_es_invitacion(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        ruta = self.tmp / "estado-gh" / "estado.json"
+        estado = json.loads(ruta.read_text())
+        self.assertEqual(estado["repos"][f"ana/{REPO_MI_TRABAJO}"]["descripcion"],
+                         "Mi trabajo de Mint Docente")
+        estado["invitaciones"].append({"id": 50, "repo": f"ana/{REPO_MI_TRABAJO}",
+                                       "invitado": "luis", "de": "ana"})
+        ruta.write_text(json.dumps(estado))
+        self.assertEqual(self.ok("luis", "invitaciones"), [])
+
+    def test_ruta_con_tildes(self):
+        self.raiz = lambda u: self.tmp / "José Ángel" / "Proyecto predeterminado" / "Compartido"
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "Programación didáctica.md").write_text("hola\n")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Tildes")
+        self.assertIn("Programación didáctica.md", datos["subidos"])
+        self.assertIn("Programación didáctica.md", self.archivos_remotos())
+
+
 if __name__ == "__main__":
     unittest.main()
