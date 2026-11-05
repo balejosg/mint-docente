@@ -17,6 +17,10 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 COMPARTIR = Path(os.environ.get("COMPARTIR_BIN", AQUI.parent / "files" / "compartir" / "compartir"))
 FALSO_GH = AQUI / "falso-gh"
+# Skills del sistema: las del repositorio o, dentro de la VM, las instaladas.
+_CANDIDATAS = [Path(os.environ["PRUEBA_SKILLS_SISTEMA"])] if os.environ.get("PRUEBA_SKILLS_SISTEMA") \
+    else [AQUI.parent / "files" / "opencode" / "skills", Path("/usr/share/mint-docente/skills")]
+SKILLS_SISTEMA = next((p for p in _CANDIDATAS if p.is_dir()), _CANDIDATAS[0])
 CLAVE_FALSA = "sk-ant-" + "a1B2c3D4e5" * 4
 
 
@@ -46,7 +50,7 @@ class Base(unittest.TestCase):
             "COMPARTIR_GIT_BASE": str(self.base),
             "COMPARTIR_RAIZ": str(self.raiz(usuario)),
             "COMPARTIR_SKILLS": str(self.skills(usuario)),
-            "COMPARTIR_SKILLS_SISTEMA": str(AQUI.parent / "files" / "opencode" / "skills"),
+            "COMPARTIR_SKILLS_SISTEMA": str(SKILLS_SISTEMA),
             "FALSO_GH_USUARIO": usuario,
             "FALSO_GH_DIR": str(self.tmp / "estado-gh"),
             "FALSO_GH_LOG": str(self.log),
