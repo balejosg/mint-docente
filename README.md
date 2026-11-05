@@ -31,6 +31,7 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
 | Normativa de Madrid | Paquete `normativa-madrid` 0.1.0 (wheel con sha256) instalado en `/opt/docente-py`, con la orden `normativa-madrid` para consultar, buscar y comprobar códigos sin Internet. Cobertura: Primaria completa; solo algunas materias de ESO y Bachillerato (computación y digitalización); FP (DAM y algunos módulos optativos). Una vista `.md` por ficha del catálogo en `/usr/share/mint-docente/normativa/` |
 | OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 7 skills en español en `/usr/share/mint-docente/` |
+| Sistema | Un solo kernel, retenido (`apt-mark hold`) y sin actualizaciones automáticas: no hay compiladores (ni `build-essential` ni DKMS) para recompilar las Guest Additions. Sin Thunderbird, HexChat, Transmission, Hypnotix, Celluloid, Rhythmbox, Warpinator ni Timeshift. Sin firmware, documentación ni manuales; idiomas: es, ca, gl, eu y en (`/etc/dpkg/dpkg.cfg.d/90-mint-docente` hace que las actualizaciones tampoco los traigan). Java se conserva para LibreOffice |
 | Compartir (opcional) | GitHub CLI 2.103.3 (sha256), la orden `compartir` y la skill `compartir`: espacios compartidos entre docentes en repositorios privados de su cuenta de GitHub (invitar, quitar acceso, traer, guardar sin perder versiones, usar skills de compañeros). La sesión de GitHub se inicia solo si el docente quiere, desde el menú «Conectar GitHub para compartir» |
 
 Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`), para usar `rm` y para las órdenes de `compartir` que crean, invitan, quitan, aceptan, suben o activan una skill. `sudo`, `gh` y `git push` están denegados. Estas reglas son confirmaciones para el docente, no una barrera de seguridad: un agente decidido podría saltárselas por otro camino.
@@ -50,6 +51,7 @@ Antes de Packer, `build.sh` comprueba en el anfitrión que `files/opencode/skill
 Tarda unos 75 minutos: 12 de instalación y el resto de aprovisionamiento. Al final, `test/verificar.sh` comprueba dentro de la VM:
 - las conversiones, el OCR, Typst y las plantillas;
 - la carpeta de trabajo;
+- tras el recorte y un reinicio: las Guest Additions (vboxsf, portapapeles), un solo kernel retenido, las fuentes, los idiomas y Java;
 - que no queda ninguna credencial.
 
 Si alguna prueba falla, el build falla.
@@ -68,6 +70,7 @@ provision/00-base.sh        Guest Additions, actualización, idioma, sin bloqueo
 provision/10-documentos.sh  herramientas de documentos y plantillas
 provision/20-opencode.sh    OpenCode (versión fijada con sha256), configuración, skills
 provision/30-escritorio.sh  autoarranque, asistente, lanzadores, guía PDF
+provision/80-recorte.sh     imagen más ligera: kernel retenido, sin compiladores ni programas sobrantes, reinicio
 provision/90-limpieza.sh    autologin, sin SSH ni credenciales, puesta a cero del disco
 files/                      configuración, skills, plantillas, scripts del escritorio
 files/compartir/compartir   orden para compartir espacios entre docentes (Python, sin dependencias)
@@ -99,6 +102,7 @@ docs/superpowers/          notas históricas del currículo propio, ya sustituid
 - **Sin cuenta conectada, OpenCode usa modelos gratuitos de OpenCode Zen** (p. ej. *Big Pickle*), así que funciona aunque el docente omita el asistente.
 - **Asistente de Copilot:** `opencode auth login github-copilot --method device --answer deploymentType=github.com` imprime `Enter code: XXXX-XXXX` sin preguntar nada. El asistente lee ese código y lo muestra.
 - **`opencode run` sin terminal lee la entrada estándar:** para usarlo en scripts, añade `</dev/null`.
+- **Las Guest Additions se compilan una vez, en el build.** `80-recorte.sh` quita los compiladores y retiene el metapaquete del kernel: un kernel nuevo dejaría sin carpeta compartida, portapapeles ni ajuste de pantalla. Para actualizar el kernel, se reconstruye la OVA.
 
 ## Pendiente
 

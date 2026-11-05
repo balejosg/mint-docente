@@ -138,8 +138,17 @@ build {
     ]
   }
 
+  # 80-recorte quita kernels viejos, compiladores y lo que no se usa, y reinicia.
+  provisioner "shell" {
+    execute_command   = "echo '${local.pass}' | sudo -S -E bash '{{ .Path }}'"
+    expect_disconnect = true
+    scripts           = ["../provision/80-recorte.sh"]
+  }
+
+  # Se verifica después del reinicio: la máquina arranca con lo que queda.
   provisioner "shell" {
     execute_command = "echo '${local.pass}' | sudo -S -E bash '{{ .Path }}'"
+    pause_before    = "30s"
     inline          = ["bash /var/tmp/mint-docente/test/verificar.sh"]
   }
 

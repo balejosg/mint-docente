@@ -26,6 +26,7 @@ prueba "Comprobación de códigos"        "printf 'Criterio MAD.EP.MAT.C2.CE.99\
 
 prueba "pandoc md→docx"                 "printf '# Prueba\n\nÁrbol, cigüeña, \$x^2\$\n' > p.md && pandoc p.md -o p.docx"
 prueba "LibreOffice docx→pdf"           "soffice -env:UserInstallation=file://$T/lo --headless --convert-to pdf p.docx && test -s p.pdf"
+prueba "LibreOffice con Java"           "soffice -env:UserInstallation=file://$T/lo --headless --convert-to odt p.docx && test -s p.odt && java -version"
 prueba "pandoc md→pdf (xelatex)"        "pandoc p.md -o p2.pdf --pdf-engine=xelatex && test -s p2.pdf"
 prueba "markitdown lee docx"            "markitdown p.docx | grep -q cigüeña"
 prueba "python-docx/openpyxl/pptx/pypdf" "python3 -c 'import docx, openpyxl, pptx, pypdf, pdfplumber, odf, reportlab'"
@@ -34,6 +35,17 @@ prueba "OCR en español"                 "convert -size 1400x300 xc:white -font 
 prueba "Fuentes Carlito y Arial"        "fc-list | grep -q Carlito && fc-list | grep -qi Arial"
 prueba "Guest Additions"                "lsmod | grep -q vboxguest"
 prueba "docente en vboxsf"              "id -nG | grep -qw vboxsf"
+# Sin carpeta compartida en el build, vboxsf no se carga solo: se carga a mano
+# para comprobar que el módulo sigue disponible sin compiladores.
+modprobe vboxsf 2>/dev/null || true
+prueba "Módulo vboxsf"                  "lsmod | grep -qw vboxsf"
+# Sin sesión gráfica en el build: no hay proceso VBoxClient --clipboard que buscar.
+prueba "Portapapeles de VirtualBox"     "command -v VBoxClient && lsmod | grep -qw vboxguest"
+prueba "Kernel retenido"                "apt-mark showhold | grep '^linux-image-' | grep -qvE '[0-9]+\.[0-9]+\.[0-9]+-[0-9]+'"
+prueba "Un solo kernel"                 "test \$(ls /boot/vmlinuz-* | wc -l) -eq 1"
+prueba "Sin Thunderbird"                "! command -v thunderbird"
+prueba "Fuentes para documentos"        "fc-list | grep -q 'Noto Sans' && fc-list | grep -q 'DejaVu Sans' && fc-list | grep -q Carlito && fc-list | grep -qi Arial"
+prueba "Locales en español"             "test -d /usr/share/locale/es/LC_MESSAGES && test ! -e /usr/share/locale/ja"
 prueba "Carpeta de trabajo vacía"       "D=\$(xdg-user-dir DOCUMENTS)/'Proyecto predeterminado'; test -d \"\$D\" && test -z \"\$(ls -A \"\$D\")\""
 prueba "Icono Aula → carpeta de trabajo" "test \"\$(readlink -f \"\$(xdg-user-dir DESKTOP)/Aula\")\" = \"\$(xdg-user-dir DOCUMENTS)/Proyecto predeterminado\""
 prueba "Autoarranque configurado"       "test -r ~/.config/autostart/mint-docente-inicio.desktop"
