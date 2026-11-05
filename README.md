@@ -30,9 +30,10 @@ Comprueba el resultado con el `SHA256SUMS` de la release.
 | Fórmulas | Typst 0.15, TeX Live (recommended, extra, xetex, español) |
 | Python (`/opt/docente-py`) | python-docx, openpyxl, python-pptx, pypdf, pdfplumber, odfpy, reportlab, markitdown |
 | Normativa de Madrid | Paquete `normativa-madrid` 0.1.0 (wheel con sha256) instalado en `/opt/docente-py`, con la orden `normativa-madrid` para consultar, buscar y comprobar códigos sin Internet. Cobertura: Primaria completa; solo algunas materias de ESO y Bachillerato (computación y digitalización); FP (DAM y algunos módulos optativos). Una vista `.md` por ficha del catálogo en `/usr/share/mint-docente/normativa/` |
-| OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 6 skills en español en `/usr/share/mint-docente/` |
+| OpenCode | `/etc/opencode/opencode.jsonc` (permisos, sin autoactualización), `AGENTS.md` y 7 skills en español en `/usr/share/mint-docente/` |
+| Compartir (opcional) | GitHub CLI 2.103.3 (sha256), la orden `compartir` y la skill `compartir`: espacios compartidos entre docentes en repositorios privados de su cuenta de GitHub (invitar, quitar acceso, traer, guardar sin perder versiones, usar skills de compañeros). La sesión de GitHub se inicia solo si el docente quiere, desde el menú «Conectar GitHub para compartir» |
 
-Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`) y para usar `rm`. `sudo` está denegado.
+Permisos del agente: tiene libertad dentro de la carpeta de trabajo. Pide confirmación para salir de ella (salvo Intercambio, las plantillas y `/tmp`), para usar `rm` y para las órdenes de `compartir` que crean, invitan, quitan, suben o activan una skill. `sudo`, `gh` y `git push` están denegados.
 
 ## Construir
 
@@ -69,14 +70,17 @@ provision/20-opencode.sh    OpenCode (versión fijada con sha256), configuració
 provision/30-escritorio.sh  autoarranque, asistente, lanzadores, guía PDF
 provision/90-limpieza.sh    autologin, sin SSH ni credenciales, puesta a cero del disco
 files/                      configuración, skills, plantillas, scripts del escritorio
+files/compartir/compartir   orden para compartir espacios entre docentes (Python, sin dependencias)
 test/verificar.sh           pruebas dentro de la VM
 test/probar-normativa.sh    prueba en el anfitrión el bloque de normativa-madrid (venv temporal)
+test/test_compartir.py      pruebas de compartir sin red (gh falso: test/falso-gh); `python3 test/test_compartir.py`
 docs/superpowers/          notas históricas del currículo propio, ya sustituido por normativa-madrid
 ```
 
 ## Actualizar versiones
 
 - **OpenCode:** `OPENCODE_VERSION` y `OPENCODE_DEB_SHA256` en `provision/20-opencode.sh`.
+- **GitHub CLI:** `GH_VERSION` y `GH_DEB_SHA256` en `provision/20-opencode.sh` (el sha256 está en `gh_<versión>_checksums.txt` de la release).
 - **Mint:** `ISO_URL`/`ISO_SHA256` en `build.sh` y `casper_uuid` en el `.pkr.hcl` (está en `isolinux/live.cfg` del ISO).
 - **Typst:** `TYPST_VERSION`/`TYPST_SHA256` en `provision/10-documentos.sh`.
 - **Normativa de Madrid:** los datos y el código viven en el repositorio del paquete (`normativa-madrid`), no aquí. Para subir de versión:

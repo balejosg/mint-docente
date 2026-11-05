@@ -23,6 +23,15 @@
     // Órdenes delicadas: borrar pide confirmación; sudo, nunca.
     { "action": "shell", "resource": "rm *", "effect": "ask" },
     { "action": "shell", "resource": "sudo *", "effect": "deny" },
-    { "action": "shell", "resource": "git push *", "effect": "deny" }
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+
+    // Compartir con compañeros: solo con la orden compartir (gh directo, nunca).
+    // Lo que crea, invita, quita, sube o activa una skill pide confirmación.
+    { "action": "shell", "resource": "gh *", "effect": "deny" },
+    { "action": "shell", "resource": "compartir crear*", "effect": "ask" },
+    { "action": "shell", "resource": "compartir invitar*", "effect": "ask" },
+    { "action": "shell", "resource": "compartir quitar*", "effect": "ask" },
+    { "action": "shell", "resource": "compartir guardar*", "effect": "ask" },
+    { "action": "shell", "resource": "compartir usar*", "effect": "ask" }
   ]
 }
