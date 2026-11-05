@@ -560,6 +560,42 @@ class MiTrabajo(Base):
         datos = self.ok("ana", "mi-trabajo", "guardar", "Otra vez")
         self.assertEqual(datos["no_subidos"], [{"archivo": "vídeo grande.mp4", "motivo": "grande"}])
 
+    def test_guardar_archivo_que_crece_conserva_version_anterior(self):
+        self.aula("ana").mkdir(parents=True)
+        video = self.aula("ana") / "vídeo.mp4"
+        video.write_bytes(b"version pequena \x00")
+        self.ok("ana", "mi-trabajo", "guardar", "Pequeño")
+        antes = self.git(self.bare(), "rev-parse", "main:vídeo.mp4").strip()
+        with open(video, "r+b") as f:
+            f.truncate(96 * 1024 * 1024)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Crece")
+        self.assertEqual(datos["no_subidos"], [{"archivo": "vídeo.mp4", "motivo": "grande"}])
+        self.assertIn("vídeo.mp4", self.archivos_remotos())
+        self.assertEqual(self.git(self.bare(), "rev-parse", "main:vídeo.mp4").strip(), antes)
+        self.assertEqual(self.git(self.bare(), "-c", "core.quotepath=off", "log", "--diff-filter=D",
+                                  "--name-only", "--format=", "main").strip(), "")
+        self.assertIn("notas.md", self.archivos_remotos())
+        self.assertEqual(video.stat().st_size, 96 * 1024 * 1024)
+
+    def test_estado_sin_conexion(self):
+        gh_roto = self.tmp / "gh-sin-red"
+        gh_roto.write_text("#!/bin/sh\necho 'error connecting to api.github.com' >&2\nexit 1\n")
+        gh_roto.chmod(0o755)
+        entorno = self.entorno
+        self.entorno = lambda u: {**entorno(u), "COMPARTIR_GH": str(gh_roto)}
+        rc, _, err = self.compartir("ana", "mi-trabajo", "estado")
+        self.assertEqual(rc, 4)
+        self.assertIn("No hay conexión con GitHub", err)
+
+    def test_estado_aula_con_git_sin_remoto(self):
+        self.aula("ana").mkdir(parents=True)
+        self.git(self.aula("ana"), "init", "-q")
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        datos = self.ok("ana", "mi-trabajo", "estado")
+        self.assertTrue(datos["local"])
+        self.assertEqual(datos["pendientes"], 1)
+
     def test_guardar_rechaza_clave(self):
         self.aula("ana").mkdir(parents=True)
         (self.aula("ana") / "notas.md").write_text("hola\n")

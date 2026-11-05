@@ -382,7 +382,7 @@ def comprobar_salientes(esp: Espacio, grandes: str = "error") -> list[str]:
         if ruta.stat().st_size > LIMITE_BYTES:
             if grandes != "excluir":
                 raise Error(MENSAJES["grande"].format(archivo))
-            git(esp.ruta, "rm", "-q", "--cached", "--", archivo)
+            sacar_del_indice(esp.ruta, archivo)
             excluir(esp.ruta, [archivo])
             excluidos.append(archivo)
             continue
@@ -526,27 +526,36 @@ def limpiar_mezcla(esp: Espacio) -> None:
             git(esp.ruta, "reset", "-q")
 
 
-def excluir_grandes_previos(ruta: Path) -> list[str]:
-    """Antes de `git add`, excluye los archivos nuevos o cambiados de más de
-    LIMITE_BYTES (así git ni siquiera los copia). Reescribe .git/info/exclude."""
+def excluir_grandes_previos(ruta: Path) -> tuple[list[str], list[str]]:
+    """Antes de `git add`, busca los archivos nuevos o cambiados de más de
+    LIMITE_BYTES (así git ni siquiera los copia). Los nuevos van a
+    .git/info/exclude (que se reescribe). Devuelve (todos, ya_seguidos): los ya
+    seguidos se dejan fuera del `git add` para conservar su versión anterior."""
     (ruta / ".git" / "info").mkdir(parents=True, exist_ok=True)
     (ruta / ".git" / "info" / "exclude").write_text(EXCLUDE_AULA, encoding="utf-8")
     candidatos = set(nombres(git(ruta, "ls-files", "-z", "--others", "--exclude-standard").stdout))
     modificados = set(nombres(git(ruta, "ls-files", "-z", "--modified").stdout))
     grandes = sorted(a for a in candidatos | modificados
                      if (ruta / a).is_file() and (ruta / a).stat().st_size > LIMITE_BYTES)
-    for a in sorted(set(grandes) & modificados):
-        git(ruta, "rm", "-q", "--cached", "--", a)
-    excluir(ruta, grandes)
-    return grandes
+    excluir(ruta, [a for a in grandes if a in candidatos])
+    return grandes, [a for a in grandes if a in modificados]
+
+
+def sacar_del_indice(ruta: Path, archivo: str) -> None:
+    """Deja `archivo` en el índice como está en HEAD: si ya estaba guardado se
+    conserva la versión anterior (nunca se sube un borrado); si es nuevo, se quita."""
+    if git(ruta, "cat-file", "-e", f"HEAD:{archivo}", comprobar=False).returncode == 0:
+        git(ruta, "reset", "-q", "--", archivo)
+    else:
+        git(ruta, "rm", "-q", "--cached", "--", archivo)
 
 
 def preparar_local(esp: Espacio, mensaje: str, grandes: str = "error") -> list[str]:
     """Junta en un único commit local todo lo que aún no está en GitHub.
     Devuelve los archivos grandes que se han dejado fuera (grandes="excluir")."""
     limpiar_mezcla(esp)
-    excluidos = excluir_grandes_previos(esp.ruta) if grandes == "excluir" else []
-    git(esp.ruta, "add", "-A")
+    excluidos, seguidos = excluir_grandes_previos(esp.ruta) if grandes == "excluir" else ([], [])
+    git(esp.ruta, "add", "-A", "--", ":(top)", *(f":(top,exclude,literal){a}" for a in seguidos))
     if hay_remoto(esp):
         # Solo se juntan los commits propios: el punto de partida es lo último
         # que este equipo mezcló de GitHub, no origin/main (que puede ir por delante).
@@ -787,7 +796,12 @@ def mi_trabajo_estado(args):
     login = yo()["login"]
     en_github = repo_mi_trabajo_en_github(login)
     local = (aula() / ".git").is_dir()
-    n = pendientes(Espacio(aula())) if local else contar_archivos_sin_repo(aula())
+    if not local:
+        n = contar_archivos_sin_repo(aula())
+    elif git(aula(), "remote", "get-url", "origin", comprobar=False).returncode == 0:
+        n = pendientes(Espacio(aula()))
+    else:                                            # repositorio sin remoto todavía
+        n = len(nombres(git(aula(), "status", "--porcelain", "-z", "--untracked-files=all").stdout))
     salida({"en_github": en_github, "local": local, "pendientes": n})
 
 
