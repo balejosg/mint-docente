@@ -9,12 +9,15 @@ docentes cambian lo mismo, se guardan las dos versiones.
 Salida: JSON en stdout. Errores: una línea en español en stderr.
 Códigos: 0 bien · 1 error explicado · 3 sin sesión de GitHub · 4 sin conexión.
 """
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 import unicodedata
 from pathlib import Path
 
@@ -58,10 +61,16 @@ MENSAJES = {
     "mi_trabajo_en_otro_equipo": "En GitHub ya tienes «Mi trabajo» guardado desde otro equipo. "
                                  "Trae primero tu trabajo y después vuelve a guardar.",
     "espacio_sin_guardar": "«Mi trabajo» se ha guardado, pero el espacio «{}» no: {}",
+    "sin_mi_trabajo": "Todavía no has guardado tu trabajo en GitHub desde ningún equipo.",
+    "aviso_espacio": "No he podido recuperar el espacio «{}»: {}",
+    "aviso_skill_sin_version": "No he podido recuperar la skill {} en la versión que usabas: "
+                               "ya no está en el espacio «{}».",
+    "aviso_skill_propia": "Ya hay en este equipo otra skill llamada {}. No la sustituyo; la "
+                          "tuya guardada está en .mint-docente/skills-propias/{}.",
     "uso": "Uso: compartir estado | crear <nombre> | invitar <espacio> <usuario> | "
            "quitar <espacio> <usuario> | quien <espacio> | invitaciones | aceptar <id> | "
            "traer [<espacio>] | guardar <espacio> <descripción> | usar <espacio> <ruta-skill> | skills | "
-           "mi-trabajo estado | mi-trabajo guardar <descripción>",
+           "mi-trabajo estado | mi-trabajo guardar <descripción> | mi-trabajo traer",
 }
 
 DESCRIPCION_REPO = "Espacio compartido de Mint Docente"
@@ -300,20 +309,33 @@ def escribir_etapa(esp: Espacio, etapa: int, archivo: str, destino: str) -> None
     (esp.ruta / destino).write_bytes(contenido)
 
 
-def mezclar(esp: Espacio) -> dict:
-    """Mezcla origin/main en HEAD sin perder nada. Devuelve nuevos/mezclados/dos_versiones."""
+def mezclar(esp: Espacio, sin_historia_comun: bool = False) -> dict:
+    """Mezcla origin/main en HEAD sin perder nada. Devuelve nuevos/mezclados/dos_versiones.
+    Con sin_historia_comun=True también mezcla una copia local que no comparte
+    historia con GitHub (el Aula de un equipo nuevo): cada archivo que está en los
+    dos lados con distinto contenido se queda con las dos versiones."""
     res = {"nuevos": [], "mezclados": [], "dos_versiones": []}
     if not hay_remoto(esp):
         return res
     if git(esp.ruta, "merge-base", "--is-ancestor", REMOTO, "HEAD",
            comprobar=False).returncode == 0:
         return res                                   # nada nuevo en GitHub
-    base = git(esp.ruta, "merge-base", "HEAD", REMOTO).stdout.strip()
+    r = git(esp.ruta, "merge-base", "HEAD", REMOTO, comprobar=not sin_historia_comun)
+    extra, distintos = [], None
+    if r.returncode == 0:
+        base = r.stdout.strip()
+    else:                                            # historias sin relación
+        base = git(esp.ruta, "hash-object", "-t", "tree", os.devnull).stdout.strip()
+        extra = ["--allow-unrelated-histories"]
+        distintos = set(nombres(git(esp.ruta, "diff", "-z", "--name-only", "HEAD", REMOTO).stdout))
     suyos = set(nombres(git(esp.ruta, "diff", "-z", "--name-only", base, REMOTO).stdout))
     mios = set(nombres(git(esp.ruta, "diff", "-z", "--name-only", base, "HEAD").stdout))
     res["nuevos"] = sorted(nombres(git(esp.ruta, "diff", "-z", "--name-only",
                                        "--diff-filter=AMR", base, REMOTO).stdout))
-    r = git(esp.ruta, "merge", "-q", "--no-edit", REMOTO, comprobar=False)
+    if distintos is not None:                        # lo idéntico en los dos lados no es nuevo
+        res["nuevos"] = [a for a in res["nuevos"] if a in distintos]
+        suyos &= distintos
+    r = git(esp.ruta, "merge", "-q", "--no-edit", *extra, REMOTO, comprobar=False)
     conflictos = set()
     if r.returncode != 0:
         archivo = ""
@@ -805,6 +827,23 @@ def mi_trabajo_estado(args):
     salida({"en_github": en_github, "local": local, "pendientes": n})
 
 
+def configurar_repo_aula(usuario: dict) -> Path:
+    """Convierte el Aula en un repositorio cuyo origin es «Mi trabajo» (si no lo era)."""
+    carpeta = aula()
+    carpeta.mkdir(parents=True, exist_ok=True)
+    if not (carpeta / ".git").is_dir():
+        git(carpeta, "init", "-q")
+        git(carpeta, "symbolic-ref", "HEAD", "refs/heads/main")
+    configurar_identidad(carpeta, usuario)
+    url = f"{git_base()}/{usuario['login']}/{REPO_MI_TRABAJO}.git"
+    actual = git(carpeta, "remote", "get-url", "origin", comprobar=False)
+    if actual.returncode != 0:
+        git(carpeta, "remote", "add", "origin", url)
+    elif actual.stdout.strip() != url:
+        git(carpeta, "remote", "set-url", "origin", url)
+    return carpeta
+
+
 def preparar_repo_aula(usuario: dict) -> None:
     """Crea en GitHub el repositorio de «Mi trabajo» y convierte el Aula en su copia local."""
     login = usuario["login"]
@@ -815,18 +854,7 @@ def preparar_repo_aula(usuario: dict) -> None:
         except ErrorGitHub as e:
             if "already exists" not in str(e):
                 raise
-    carpeta = aula()
-    carpeta.mkdir(parents=True, exist_ok=True)
-    if not (carpeta / ".git").is_dir():
-        git(carpeta, "init", "-q")
-        git(carpeta, "symbolic-ref", "HEAD", "refs/heads/main")
-    configurar_identidad(carpeta, usuario)
-    url = f"{git_base()}/{login}/{REPO_MI_TRABAJO}.git"
-    actual = git(carpeta, "remote", "get-url", "origin", comprobar=False)
-    if actual.returncode != 0:
-        git(carpeta, "remote", "add", "origin", url)
-    elif actual.stdout.strip() != url:
-        git(carpeta, "remote", "set-url", "origin", url)
+    carpeta = configurar_repo_aula(usuario)
     gitignore = carpeta / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(GITIGNORE + "Compartido/\n", encoding="utf-8")
@@ -888,7 +916,173 @@ def mi_trabajo_guardar(args):
     salida(total)
 
 
-SUBORDENES_MI_TRABAJO = {"estado": mi_trabajo_estado, "guardar": mi_trabajo_guardar}
+def leer_json_lista(ruta: Path) -> list[dict]:
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return []
+    return [d for d in datos if isinstance(d, dict)] if isinstance(datos, list) else []
+
+
+def mismo_contenido(a: Path, b: Path) -> bool:
+    """Las dos carpetas tienen los mismos archivos con el mismo contenido (sin .origen)."""
+    def archivos(d: Path) -> dict[str, bytes]:
+        return {str(p.relative_to(d)): p.read_bytes() for p in d.rglob("*")
+                if p.is_file() and not p.is_symlink() and p.name != ".origen"
+                and ".git" not in p.relative_to(d).parts}
+    try:
+        return a.is_dir() and b.is_dir() and archivos(a) == archivos(b)
+    except OSError:
+        return False
+
+
+def confirmar_locales_aula(carpeta: Path) -> None:
+    """Confirma lo que haya en el Aula antes de mezclar, para no perder nada. Nunca
+    entra Compartido/, lo que no se comparte (.env, bloqueos…) ni lo enorme."""
+    limpiar_mezcla(Espacio(carpeta))
+    _, seguidos = excluir_grandes_previos(carpeta)
+    with open(carpeta / ".git" / "info" / "exclude", "a", encoding="utf-8") as f:
+        f.write(GITIGNORE)
+    git(carpeta, "add", "-A", "--", ":(top)", *(f":(top,exclude,literal){a}" for a in seguidos))
+    if git(carpeta, "status", "--porcelain", "--untracked-files=no").stdout.strip():
+        git(carpeta, "commit", "-q", "-m", "Cambios locales antes de traer")
+
+
+def traer_aula(carpeta: Path) -> dict:
+    esp = Espacio(carpeta)
+    fetch(esp)
+    if not hay_remoto(esp):
+        return {"nuevos": [], "mezclados": [], "dos_versiones": []}
+    if git(carpeta, "rev-parse", "-q", "--verify", "HEAD", comprobar=False).returncode != 0:
+        # Nada local que confirmar: se trae tal cual. Si un archivo ignorado de este
+        # equipo se llama igual que uno de GitHub, git se niega y no se pierde nada.
+        nuevos = sorted(nombres(git(carpeta, "ls-tree", "-r", "-z", "--name-only",
+                                    REMOTO).stdout))
+        r = git(carpeta, "merge", "-q", "--ff-only", REMOTO, comprobar=False)
+        if r.returncode != 0:
+            raise Error(MENSAJES["mezcla"].format(ultima_linea(r.stderr or r.stdout)))
+        return {"nuevos": nuevos, "mezclados": [], "dos_versiones": []}
+    return mezclar(esp, sin_historia_comun=True)
+
+
+def recuperar_espacios(usuario: dict, avisos: list[str]) -> list[str]:
+    recuperados = []
+    for e in leer_json_lista(datos_mi_trabajo() / "espacios.json"):
+        nombre, propietario, repo = (str(e.get(k) or "") for k in ("nombre", "propietario", "repo"))
+        if not nombre_valido(nombre) or not propietario or not repo:
+            continue
+        destino = raiz() / nombre
+        if destino.exists():
+            continue
+        try:
+            try:
+                gh(["api", f"repos/{propietario}/{repo}"])
+            except ErrorGitHub as ex:
+                if http_estado(ex) == 404:
+                    raise Error(MENSAJES["sin_acceso_espacio"])
+                raise
+            clonar(propietario, repo, destino, usuario)
+        except (SinSesion, SinConexion):
+            raise
+        except Error as ex:
+            avisos.append(MENSAJES["aviso_espacio"].format(nombre, ex))
+            continue
+        recuperados.append(nombre)
+    return recuperados
+
+
+def extraer_version(esp_ruta: Path, version: str, destino: Path) -> None:
+    """Extrae el árbol `version` del espacio (la copia fija) en `destino`."""
+    tar = subprocess.run(["git", "-C", str(esp_ruta), "archive", "--format=tar", version],
+                         capture_output=True, check=True).stdout
+    temporal = Path(tempfile.mkdtemp(prefix=f".{destino.name}-", dir=destino.parent))
+    try:
+        with tarfile.open(fileobj=io.BytesIO(tar)) as t:
+            if hasattr(tarfile, "data_filter"):
+                t.extractall(temporal, filter="data")
+            else:                                    # Python sin filtros: solo lo normal
+                t.extractall(temporal, members=[m for m in t.getmembers()
+                                                if (m.isfile() or m.isdir())
+                                                and not m.name.startswith(("/", ".."))
+                                                and ".." not in Path(m.name).parts])
+        temporal.rename(destino)
+    except BaseException:
+        shutil.rmtree(temporal, ignore_errors=True)
+        raise
+
+
+def recuperar_skills_companeros(avisos: list[str]) -> list[str]:
+    recuperadas = []
+    sistema = skills_sistema()
+    for s in leer_json_lista(datos_mi_trabajo() / "skills-companeros.json"):
+        nombre, espacio_, ruta, version = (str(s.get(k) or "")
+                                           for k in ("skill", "espacio", "ruta", "version"))
+        if not nombre_valido(nombre) or not nombre_valido(espacio_) or not ruta:
+            continue
+        destino = skills_dir() / nombre
+        origen = {"espacio": espacio_, "ruta": ruta, "version": version}
+        if nombre in sistema:
+            avisos.append(MENSAJES["skill_ocupada"].format(nombre))
+            continue
+        if destino.exists() or destino.is_symlink():
+            try:
+                previo = json.loads((destino / ".origen").read_text())
+            except (OSError, json.JSONDecodeError):
+                previo = {}
+            if previo != origen:
+                avisos.append(MENSAJES["skill_ocupada"].format(nombre))
+            continue
+        esp_ruta = raiz() / espacio_
+        if not (esp_ruta / ".git").is_dir() or not re.fullmatch(r"[0-9a-f]{40,64}", version) or \
+                git(esp_ruta, "cat-file", "-t", version, comprobar=False).stdout.strip() != "tree":
+            avisos.append(MENSAJES["aviso_skill_sin_version"].format(nombre, espacio_))
+            continue
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        extraer_version(esp_ruta, version, destino)
+        (destino / ".origen").write_text(json.dumps(origen, ensure_ascii=False))
+        recuperadas.append(nombre)
+    return recuperadas
+
+
+def recuperar_skills_propias(avisos: list[str]) -> list[str]:
+    recuperadas = []
+    propias = datos_mi_trabajo() / "skills-propias"
+    if not propias.is_dir():
+        return recuperadas
+    for p in sorted(propias.iterdir()):
+        if not p.is_dir() or not nombre_valido(p.name):
+            continue
+        destino = skills_dir() / p.name
+        if destino.exists() or destino.is_symlink():
+            if not mismo_contenido(p, destino):
+                avisos.append(MENSAJES["aviso_skill_propia"].format(p.name, p.name))
+            continue
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(p, destino, symlinks=False, ignore_dangling_symlinks=True)
+        recuperadas.append(p.name)
+    return recuperadas
+
+
+def mi_trabajo_traer(args):
+    if args:
+        raise Error(MENSAJES["uso"])
+    usuario = yo()
+    if not repo_mi_trabajo_en_github(usuario["login"]):
+        raise Error(MENSAJES["sin_mi_trabajo"])
+    carpeta = configurar_repo_aula(usuario)
+    confirmar_locales_aula(carpeta)
+    res = traer_aula(carpeta)
+    avisos: list[str] = []
+    espacios_ = recuperar_espacios(usuario, avisos)
+    skills = recuperar_skills_companeros(avisos) + recuperar_skills_propias(avisos)
+    salida({"traidos": [a for a in res["nuevos"] if not a.startswith(".mint-docente/")],
+            "mezclados": res["mezclados"], "dos_versiones": res["dos_versiones"],
+            "espacios_recuperados": espacios_, "skills_recuperadas": sorted(skills),
+            "avisos": avisos})
+
+
+SUBORDENES_MI_TRABAJO = {"estado": mi_trabajo_estado, "guardar": mi_trabajo_guardar,
+                         "traer": mi_trabajo_traer}
 
 
 def cmd_mi_trabajo(args):

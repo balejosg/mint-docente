@@ -483,7 +483,7 @@ class TestSkills(Base):
 REPO_MI_TRABAJO = "mint-docente-mi-trabajo"
 
 
-class MiTrabajo(Base):
+class BaseMiTrabajo(Base):
     def aula(self, usuario):
         return self.raiz(usuario).parent
 
@@ -494,6 +494,8 @@ class MiTrabajo(Base):
         return self.git(self.bare(usuario), "-c", "core.quotepath=off", "ls-tree", "-r", "--name-only",
                         "main").splitlines()
 
+
+class MiTrabajo(BaseMiTrabajo):
     def test_estado_sin_repo(self):
         datos = self.ok("ana", "mi-trabajo", "estado")
         self.assertFalse(datos["en_github"])
@@ -658,6 +660,149 @@ class MiTrabajo(Base):
         datos = self.ok("ana", "mi-trabajo", "guardar", "Tildes")
         self.assertIn("Programación didáctica.md", datos["subidos"])
         self.assertIn("Programación didáctica.md", self.archivos_remotos())
+
+
+class MiTrabajoTraer(BaseMiTrabajo):
+    def preparar_ana(self):
+        """ana guarda: notas.md, un espacio propio y uno de luis cuya skill usa."""
+        self.ok("ana", "crear", "Propio")
+        self.ok("luis", "crear", "Recursos")
+        recursos = self.raiz("luis") / "Recursos"
+        (recursos / "skills" / "rubricas-fp").mkdir(parents=True)
+        (recursos / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(1))
+        self.ok("luis", "guardar", "Recursos", "skill")
+        self.ok("luis", "invitar", "Recursos", "ana")
+        inv = self.ok("ana", "invitaciones")
+        self.assertEqual(self.ok("ana", "aceptar", str(inv[0]["id"]))["espacio"], "Recursos")
+        usada = self.ok("ana", "usar", "Recursos", "skills/rubricas-fp")
+        (self.aula("ana") / "notas.md").write_text("notas de GitHub\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Todo")
+        return usada
+
+    def borrar_equipo(self, usuario="ana"):
+        shutil.rmtree(self.aula(usuario))
+        shutil.rmtree(self.skills(usuario), ignore_errors=True)
+
+    def test_traer_en_maquina_nueva(self):
+        usada = self.preparar_ana()
+        self.borrar_equipo()
+        datos = self.ok("ana", "mi-trabajo", "traer")
+        self.assertEqual((self.aula("ana") / "notas.md").read_text(), "notas de GitHub\n")
+        self.assertIn("notas.md", datos["traidos"])
+        for nombre in ("Propio", "Recursos"):
+            self.assertTrue((self.raiz("ana") / nombre / ".git").is_dir(), nombre)
+        self.assertEqual(sorted(datos["espacios_recuperados"]), ["Propio", "Recursos"])
+        origen = json.loads((self.skills("ana") / "rubricas-fp" / ".origen").read_text())
+        self.assertEqual(origen, {"espacio": "Recursos", "ruta": "skills/rubricas-fp",
+                                  "version": usada["version"]})
+        self.assertIn("rubricas-fp", datos["skills_recuperadas"])
+        self.assertEqual(datos["avisos"], [])
+        self.assertEqual(datos["dos_versiones"], [])
+        # Y la skill sigue al día para `compartir skills`.
+        self.assertFalse(self.ok("ana", "skills")[0]["hay_nueva"])
+        # Traer otra vez en el mismo equipo no repite nada ni avisa.
+        (self.aula("ana") / "local.md").write_text("de este equipo\n")
+        otra = self.ok("ana", "mi-trabajo", "traer")
+        self.assertEqual((otra["espacios_recuperados"], otra["skills_recuperadas"], otra["avisos"],
+                          otra["dos_versiones"]), ([], [], [], []))
+        self.assertTrue((self.aula("ana") / "local.md").is_file())
+
+    def test_traer_skill_en_version_fija(self):
+        self.preparar_ana()
+        recursos = self.raiz("luis") / "Recursos"
+        (recursos / "skills" / "rubricas-fp" / "SKILL.md").write_text(SKILL.format(2))
+        self.ok("luis", "guardar", "Recursos", "skill v2")
+        self.borrar_equipo()
+        self.ok("ana", "mi-trabajo", "traer")
+        self.assertIn("Versión 1", (self.skills("ana") / "rubricas-fp" / "SKILL.md").read_text())
+        self.assertTrue(self.ok("ana", "skills")[0]["hay_nueva"])
+
+    def test_traer_skills_propias_sin_pisar(self):
+        self.aula("ana").mkdir(parents=True)
+        for nombre in ("mia", "otra"):
+            (self.skills("ana") / nombre).mkdir(parents=True)
+            (self.skills("ana") / nombre / "SKILL.md").write_text(f"guardada {nombre}\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Skills")
+        self.borrar_equipo()
+        (self.skills("ana") / "otra").mkdir(parents=True)
+        (self.skills("ana") / "otra" / "SKILL.md").write_text("distinta\n")
+        datos = self.ok("ana", "mi-trabajo", "traer")
+        self.assertEqual((self.skills("ana") / "mia" / "SKILL.md").read_text(), "guardada mia\n")
+        self.assertEqual((self.skills("ana") / "otra" / "SKILL.md").read_text(), "distinta\n")
+        self.assertEqual(datos["skills_recuperadas"], ["mia"])
+        self.assertTrue([a for a in datos["avisos"] if "otra" in a], datos["avisos"])
+
+    def test_traer_no_pisa_local(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("notas de GitHub\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        self.borrar_equipo()
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("notas de este equipo\n")
+        (self.aula("ana") / "solo-aqui.md").write_text("local\n")
+        datos = self.ok("ana", "mi-trabajo", "traer")
+        self.assertEqual((self.aula("ana") / "notas.md").read_text(), "notas de GitHub\n")
+        self.assertEqual((self.aula("ana") / "notas (versión de ana).md").read_text(),
+                         "notas de este equipo\n")
+        self.assertEqual((self.aula("ana") / "solo-aqui.md").read_text(), "local\n")
+        self.assertEqual(datos["dos_versiones"], [["notas.md", "notas (versión de ana).md"]])
+
+    def test_traer_y_despues_guardar(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("notas de GitHub\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Desde el equipo 1")
+        self.borrar_equipo()
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "nuevo.md").write_text("del equipo 2\n")
+        rc, _, err = self.compartir("ana", "mi-trabajo", "guardar", "Desde el equipo 2")
+        self.assertEqual(rc, 1)
+        self.assertIn("Trae primero tu trabajo", err)
+        self.ok("ana", "mi-trabajo", "traer")
+        datos = self.ok("ana", "mi-trabajo", "guardar", "Desde el equipo 2")
+        self.assertIn("nuevo.md", datos["subidos"])
+        archivos = self.archivos_remotos()
+        self.assertIn("notas.md", archivos)
+        self.assertIn("nuevo.md", archivos)
+        self.assertNotIn(".gitignore (versión de ana)", archivos)
+        self.assertEqual(self.ok("ana", "mi-trabajo", "estado")["pendientes"], 0)
+
+    def test_traer_no_sube_ni_confirma_env(self):
+        self.aula("ana").mkdir(parents=True)
+        (self.aula("ana") / "notas.md").write_text("hola\n")
+        self.ok("ana", "mi-trabajo", "guardar", "Primera vez")
+        self.borrar_equipo()
+        self.ok("ana", "crear", "Propio")
+        (self.aula("ana") / ".env").write_text("API_KEY=\"" + CLAVE_FALSA + "\"\n")
+        self.ok("ana", "mi-trabajo", "traer")
+        self.ok("ana", "mi-trabajo", "guardar", "Otra vez")
+        archivos = self.archivos_remotos()
+        self.assertNotIn(".env", archivos)
+        self.assertFalse([a for a in archivos if a.startswith("Compartido")], archivos)
+        self.assertTrue((self.aula("ana") / ".env").is_file())
+
+    def test_traer_espacio_sin_acceso(self):
+        self.preparar_ana()
+        self.ok("luis", "quitar", "Recursos", "ana")
+        self.borrar_equipo()
+        rc, datos, err = self.compartir("ana", "mi-trabajo", "traer")
+        self.assertEqual(rc, 0, err)
+        self.assertTrue([a for a in datos["avisos"] if "acceso" in a], datos["avisos"])
+        self.assertEqual(datos["espacios_recuperados"], ["Propio"])
+        self.assertTrue((self.raiz("ana") / "Propio" / ".git").is_dir())
+        self.assertFalse((self.raiz("ana") / "Recursos").exists())
+        self.assertEqual((self.aula("ana") / "notas.md").read_text(), "notas de GitHub\n")
+
+    def test_traer_sin_repo(self):
+        rc, _, err = self.compartir("ana", "mi-trabajo", "traer")
+        self.assertEqual(rc, 1)
+        self.assertIn("Todavía no has guardado tu trabajo en GitHub desde ningún equipo.", err)
+
+    def test_traer_sin_sesion(self):
+        (self.tmp / "estado-gh").mkdir()
+        (self.tmp / "estado-gh" / "sin_sesion").touch()
+        rc, _, err = self.compartir("ana", "mi-trabajo", "traer")
+        self.assertEqual(rc, 3)
+        self.assertIn("Conectar GitHub para compartir", err)
 
 
 if __name__ == "__main__":
