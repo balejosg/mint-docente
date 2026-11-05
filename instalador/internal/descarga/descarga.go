@@ -70,6 +70,12 @@ func (r *reintentador) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
+// EsSinEspacio dice si err se debe a que el disco está lleno, venga de Bajar
+// (ErrSinEspacio) o de cualquier otra escritura.
+func EsSinEspacio(err error) bool {
+	return errors.Is(err, ErrSinEspacio) || sinEspacio(err)
+}
+
 func sinEspacio(err error) bool {
 	if errors.Is(err, syscall.ENOSPC) {
 		return true
