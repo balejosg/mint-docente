@@ -44,6 +44,8 @@ prueba "Módulo vboxsf"                  "lsmod | grep -qw vboxsf"
 # Sin sesión gráfica en el build: no hay proceso VBoxClient --clipboard que buscar.
 prueba "Portapapeles de VirtualBox"     "command -v VBoxClient && lsmod | grep -qw vboxguest"
 prueba "Kernel retenido"                "apt-mark showhold | grep '^linux-image-' | grep -qvE '[0-9]+\.[0-9]+\.[0-9]+-[0-9]+'"
+# Otro kernel de los repositorios no se puede instalar; el que está en marcha no queda bloqueado.
+prueba "Kernel nuevo bloqueado"         "n=\$(apt-cache pkgnames linux-image- | grep -E '^linux-image-[0-9].*-generic\$' | grep -vxF \"linux-image-\$(uname -r)\" | sort | tail -n1); test -n \"\$n\" && ! apt-get -s install \"\$n\" && apt-cache policy \"linux-image-\$(uname -r)\" | grep -E '^ +\*\*\* ' | grep -qvE ' -1\$'"
 prueba "Un solo kernel"                 "test \$(ls /boot/vmlinuz-* | wc -l) -eq 1"
 prueba "Sin Thunderbird"                "! command -v thunderbird"
 prueba "Fuentes para documentos"        "fc-list | grep -q 'Noto Sans' && fc-list | grep -q 'DejaVu Sans' && fc-list | grep -q Carlito && fc-list | grep -qi Arial"

@@ -34,8 +34,15 @@ for m in vboxguest vboxsf; do
 done
 
 log "Quitar los kernels que no están en marcha"
-VIEJOS=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'linux-*' | awk '$1 ~ /^.i/ {print $2}' \
-  | grep -E "^linux-.*$VERSION_KERNEL" | grep -v -- "$KVER" || true)
+# Versión exacta: con 6.8.0-4 en marcha, 6.8.0-45 también es otro kernel.
+version_en_nombre() { grep -oE "$VERSION_KERNEL" <<<"$1" | tail -n1; }
+paquetes_kernel() { # paquetes linux-* instalados con una versión de kernel en el nombre
+  dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'linux-*' | awk '$1 ~ /^.i/ {print $2}' \
+    | { grep -E "^linux-.*$VERSION_KERNEL" || true; }
+}
+VIEJOS=$(paquetes_kernel | while read -r p; do
+  if [ "$(version_en_nombre "$p")" != "$KVER" ]; then echo "$p"; fi
+done)
 [ -z "$VIEJOS" ] || apt_get purge $VIEJOS
 
 log "Quitar compiladores, DKMS y las cabeceras del kernel en marcha"
@@ -52,6 +59,26 @@ METAS=$(instalados linux-generic-hwe-24.04 linux-image-generic-hwe-24.04 linux-h
 # Manuales para que autoremove no se los lleve al quitar linux-generic-hwe-24.04.
 apt-mark manual $METAS
 apt-mark hold $METAS
+# La retención solo cubre los metapaquetes: la ventana de kernels del Gestor de
+# actualizaciones instala paquetes con versión (linux-image-X) directamente.
+# Se bloquean todos (prioridad -1) salvo los del kernel en marcha, que van
+# detrás con su nombre exacto: apt_preferences(5) pide los patrones primero
+# para que los nombres exactos de después manden sobre ellos.
+EN_MARCHA=$(paquetes_kernel | while read -r p; do
+  if [ "$(version_en_nombre "$p")" = "$KVER" ]; then echo "$p"; fi
+done | tr '\n' ' ')
+[ -n "$EN_MARCHA" ] || { echo "No se encuentran los paquetes del kernel en marcha"; exit 1; }
+cat > /etc/apt/preferences.d/90-mint-docente-kernel <<EOF
+# Mint Docente: sin compiladores, un kernel nuevo dejaría sin Guest Additions.
+Package: linux-image-[0-9]* linux-image-unsigned-[0-9]* linux-modules-[0-9]* linux-modules-extra-[0-9]* linux-headers-[0-9]* linux-main-modules-* linux-hwe-*
+Pin: version *
+Pin-Priority: -1
+
+Package: $EN_MARCHA
+Pin: version *
+Pin-Priority: 500
+EOF
+cat /etc/apt/preferences.d/90-mint-docente-kernel
 
 log "Sin actualizaciones automáticas"
 systemctl disable --now mintupdate-automation-upgrade.timer 2>/dev/null || true
@@ -102,12 +129,22 @@ CANDIDATOS=$(for d in /usr/share/icons/*/; do dpkg -S "${d%/}" 2>/dev/null | cut
   | tr -d ' ' | sort -u | grep -vxF -f <(echo "$NECESARIOS") || true)
 # Solo se purga un paquete de temas (sin programas ni lanzadores, p. ej. no onboard)
 # y si al hacerlo no se lleva nada más que otros temas.
-TEMAS=""
+SOLO_TEMAS=""
 for p in $CANDIDATOS; do
-  if dpkg -L "$p" | grep -qE '^/usr/(s?bin|lib|libexec|games|share/applications)/'; then
-    echo "Se queda $p (no es solo un tema)"; continue
+  # La lista se guarda antes de buscar: con grep -q y pipefail, dpkg -L podría
+  # morir por SIGPIPE y un programa pasaría por tema.
+  archivos=$(dpkg -L "$p" 2>/dev/null || true)
+  if grep -E '^/usr/(s?bin|lib|libexec|games|share/applications)/' <<<"$archivos" >/dev/null; then
+    echo "Se queda $p (no es solo un tema)"
+  else
+    SOLO_TEMAS="$SOLO_TEMAS $p"
   fi
-  fuera=$(LANG=C apt-get -s purge "$p" 2>/dev/null | awk '/^Purg /{print $2}' | grep -vxF -f <(echo "$CANDIDATOS") || true)
+done
+# Lo que apt se lleve con cada uno tiene que ser también solo temas (nunca onboard).
+TEMAS=""
+for p in $SOLO_TEMAS; do
+  fuera=$(LANG=C apt-get -s purge "$p" 2>/dev/null | awk '/^Purg /{print $2}' \
+    | grep -vxF -f <(printf '%s\n' $SOLO_TEMAS) || true)
   if [ -z "$fuera" ]; then TEMAS="$TEMAS $p"; else echo "Se queda $p (lo necesitan: $(echo $fuera))"; fi
 done
 [ -z "$TEMAS" ] || apt_get purge $TEMAS
@@ -152,18 +189,30 @@ FONDOS=$(
            /usr/share/mint-artwork/xfce/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml \
            /etc/xdg/xdg-xfce/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml \
            /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml; do
-    sed -n 's/.*name="\(last-image\|image-path\)" type="string" value="\([^"]*\)".*/\2/p' "$f" 2>/dev/null
+    if [ -f "$f" ]; then
+      sed -n 's/.*name="\(last-image\|image-path\)" type="string" value="\([^"]*\)".*/\2/p' "$f"
+    fi
   done
-  sed -n 's/^ *background *= *//p' /etc/lightdm/*.conf /etc/lightdm/*.conf.d/*.conf 2>/dev/null
+  # Puede no haber ningún .conf (el de 90-limpieza aún no existe): sin globs vacíos.
+  for f in /etc/lightdm/*.conf /etc/lightdm/*.conf.d/*.conf; do
+    if [ -f "$f" ]; then sed -n 's/^ *background *= *//p' "$f"; fi
+  done
 )
-CONSERVAR_FONDOS=$(for f in $FONDOS; do [ -e "$f" ] && readlink -f "$f"; done | sort -u)
-echo "Se conservan: $(echo $CONSERVAR_FONDOS)"
-find /usr/share/backgrounds -type f | while read -r f; do
-  echo "$CONSERVAR_FONDOS" | grep -qxF "$f" || rm -f "$f"
-done
-# Enlaces que apuntaban a los fondos borrados (p. ej. en /usr/share/xfce4/backdrops).
-find /usr/share/backgrounds /usr/share/xfce4/backdrops -xtype l -delete 2>/dev/null || true
-find /usr/share/backgrounds -mindepth 1 -type d -empty -delete
+CONSERVAR_FONDOS=$(printf '%s\n' "$FONDOS" | while IFS= read -r f; do
+  if [ -n "$f" ] && [ -e "$f" ]; then readlink -f "$f"; fi
+done | sort -u)
+if [ -z "$CONSERVAR_FONDOS" ]; then
+  # Sin saber cuál es el fondo no se borra ninguno: mejor pesar más que un escritorio vacío.
+  echo "No se encuentra el fondo del escritorio: se conservan todos los fondos"
+else
+  echo "Se conservan:"; printf '  %s\n' $CONSERVAR_FONDOS
+  find /usr/share/backgrounds -type f -print0 | while IFS= read -r -d '' f; do
+    if ! grep -qxF -- "$f" <<<"$CONSERVAR_FONDOS"; then rm -f "$f"; fi
+  done
+  # Enlaces que apuntaban a los fondos borrados (p. ej. en /usr/share/xfce4/backdrops).
+  find /usr/share/backgrounds /usr/share/xfce4/backdrops -xtype l -delete 2>/dev/null || true
+  find /usr/share/backgrounds -mindepth 1 -type d -empty -delete
+fi
 
 log "Restos de los paquetes quitados"
 apt_get autoremove --purge
