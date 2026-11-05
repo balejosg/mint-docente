@@ -7,16 +7,30 @@ Genera una máquina virtual **llave en mano** para VirtualBox (`.ova`) con:
 
 ## Descargar
 
-La OVA ya construida está en [Releases](https://github.com/balejosg/mint-docente/releases/latest), dividida en partes de menos de 2 GB (límite de GitHub). Descarga todas las partes y únelas:
+**Windows:** descarga [`InstalarMintDocente.exe`](https://github.com/balejosg/mint-docente/releases/latest/download/InstalarMintDocente.exe) y ábrelo. Necesitas VirtualBox 7 instalado (si no lo tienes, pídeselo al coordinador TIC); el instalador no pide permisos de administrador.
 
-- Linux/macOS: `cat MintDocente-*.ova.part* > MintDocente.ova`
-- Windows (cmd): `copy /b MintDocente-20261105.ova.part0 + MintDocente-20261105.ova.part1 + MintDocente-20261105.ova.part2 MintDocente.ova`
+El instalador no está firmado, así que Windows puede mostrar una ventana azul, «Windows protegió su PC». Pulsa **Más información** (debajo del texto) y después **Ejecutar de todos modos**.
 
-Comprueba el resultado con el `SHA256SUMS` de la release.
+Después el instalador lo hace todo solo:
+1. Descarga Mint Docente (unos 3,5 GB) y comprueba que ha llegado entera. Si la descarga se corta, al volver a abrirlo sigue donde lo dejó.
+2. La instala en VirtualBox con la memoria y los procesadores ajustados a tu equipo.
+3. Crea la carpeta **Intercambio** en tus Documentos, para pasar archivos entre Windows y Mint Docente.
+4. Deja en el escritorio un acceso directo **Mint Docente** y la arranca.
+
+Si ya la tienes instalada, te pregunta si quieres abrirla o reinstalarla. Si algo falla, el mensaje dice qué hacer; el registro está en `%LOCALAPPDATA%\MintDocente\instalador.log`.
+
+**macOS y Linux (método manual):** la OVA está en [Releases](https://github.com/balejosg/mint-docente/releases/latest), dividida en partes de menos de 2 GB (límite de GitHub). Descarga todas las partes y el `SHA256SUMS`. Únelas en orden (`part0`, `part1`, `part2`…) con el nombre que tiene la `.ova` en la última línea de `SHA256SUMS`, y comprueba el resultado:
+
+```bash
+cat MintDocente-AAAAMMDD.ova.part0 MintDocente-AAAAMMDD.ova.part1 MintDocente-AAAAMMDD.ova.part2 > MintDocente-AAAAMMDD.ova
+sha256sum -c --ignore-missing SHA256SUMS   # en macOS: shasum -a 256 MintDocente-AAAAMMDD.ova, y compáralo con SHA256SUMS
+```
+
+Luego impórtala en VirtualBox (*Archivo → Importar servicio virtualizado*).
 
 ## Qué encuentra el docente
 
-1. Importa la `.ova` en VirtualBox y la arranca. Entra solo, como el usuario `docente` (contraseña `docente`).
+1. Abre la máquina (en Windows la instala y la arranca el instalador; en macOS y Linux, se importa la `.ova` en VirtualBox). Entra solo, como el usuario `docente` (contraseña `docente`).
 2. La primera vez, un asistente le guía para conectar **GitHub Copilot** (inicio de sesión con código en github.com/login/device) u otro proveedor de pago. La imagen no contiene ninguna credencial.
 3. Se abre OpenCode sobre su carpeta de trabajo, `Documentos/Proyecto predeterminado`. Es la que crea OpenCode Desktop en su primer arranque; no se puede elegir otra. Está vacía, la organizan el docente y el agente, y en el escritorio aparece como **Aula**.
 
@@ -58,6 +72,26 @@ Si alguna prueba falla, el build falla.
 
 Anfitrión Linux con kernel ≥ 6.12: si KVM está cargado, VirtualBox no puede arrancar VMs. `instalar-virtualbox-host.sh` instala VirtualBox 7.2 y añade `kvm.enable_virt_at_load=0`.
 
+### Instalador de Windows
+
+```bash
+instalador/construir.sh   # → salida/InstalarMintDocente.exe (descarga Go con versión y sha256 fijados, y pasa las pruebas)
+```
+
+Es un programa en Go (`instalador/`) que se compila desde Linux. Lee `https://github.com/balejosg/mint-docente/releases/latest/download/SHA256SUMS` y descarga de ahí las partes. Por eso cada release debe llevar las partes, el `SHA256SUMS` y el `.exe`. La versión mínima de VirtualBox está en `VBOX_MINIMA` (`instalador/internal/flujo/flujo.go`).
+
+### Preparar una release
+
+1. `./build.sh` y `instalador/construir.sh`.
+2. `./preparar-release.sh v1.2` (la etiqueta que vayas a publicar). Toma la OVA más reciente de `salida/` (se le puede pasar otra como segundo argumento), la comprueba con su `.sha256` y crea `salida/release-v1.2/` con:
+   - las partes `MintDocente-AAAAMMDD.ova.part0`, `.part1`… de 1 992 294 400 bytes (`TAM_PARTE` lo cambia);
+   - `SHA256SUMS`: una línea por parte y una para la `.ova` completa. El instalador lee este formato; no lo cambies;
+   - `InstalarMintDocente.exe`.
+
+   Si la OVA pasa de 3,8 GB, avisa: revísala antes de publicar. El script no sube nada.
+3. Súbela tú: `gh release create v1.2 salida/release-v1.2/* --title "Mint Docente v1.2"`. Tiene que quedar como *latest*, porque el instalador descarga siempre de la última release.
+4. Comprueba la descarga con el instalador en un Windows real (ver `docs/prueba-en-el-centro.md`).
+
 ## Estructura
 
 ```
@@ -77,6 +111,9 @@ files/compartir/compartir   orden para compartir espacios entre docentes (Python
 test/verificar.sh           pruebas dentro de la VM
 test/probar-normativa.sh    prueba en el anfitrión el bloque de normativa-madrid (venv temporal)
 test/test_compartir.py      pruebas de compartir sin red (gh falso: test/falso-gh); `python3 test/test_compartir.py`
+instalador/                 instalador de Windows en Go (construir.sh lo compila)
+preparar-release.sh         parte la OVA y prepara salida/release-<etiqueta>/ (sin subir nada)
+docs/prueba-en-el-centro.md lista de pruebas en un equipo real del centro
 docs/superpowers/          notas históricas del currículo propio, ya sustituido por normativa-madrid
 ```
 

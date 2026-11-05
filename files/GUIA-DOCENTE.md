@@ -10,6 +10,17 @@ Es un ordenador virtual preparado para trabajar con **OpenCode**, un asistente d
 
 - **Usuario:** `docente` · **Contraseña:** `docente` (solo se pide para tareas de administración).
 
+# Instalarla en Windows
+
+Necesitas **VirtualBox** en el ordenador. Si no lo tienes, pídeselo al coordinador TIC.
+
+1. Descarga **InstalarMintDocente.exe** de la página de Mint Docente y ábrelo.
+2. Si aparece una ventana azul, «Windows protegió su PC», pulsa **Más información** y después **Ejecutar de todos modos**.
+3. El instalador descarga Mint Docente (unos 3,5 GB, puede tardar un rato) y la prepara. Si se corta la conexión o lo detienes, vuelve a abrirlo: sigue donde lo dejó.
+4. Al terminar, la máquina arranca sola. Para abrirla otro día, haz doble clic en **Mint Docente** en el escritorio de Windows.
+
+Si vuelves a abrir el instalador con Mint Docente ya instalada, te pregunta si quieres **abrirla** o **reinstalarla**. Reinstalar borra todo lo que tengas dentro: antes, guarda tu trabajo (ver «Si trabajas en un ordenador del centro»).
+
 # Primer arranque
 
 1. Se abre un asistente que te pide conectar tu cuenta de IA. Elige **GitHub Copilot**.
@@ -44,7 +55,8 @@ Si das una materia que no está, el asistente te lo dirá: te preparará la prog
 # Pasar archivos entre tu ordenador y esta máquina
 
 - **Arrastrar y soltar** archivos sobre la ventana de la máquina virtual, o **copiar y pegar** texto.
-- **Carpeta compartida** (recomendado, solo se configura una vez). Con la máquina apagada, en VirtualBox:
+- **Carpeta Intercambio.** Si la instalaste con el instalador de Windows, ya está preparada: lo que dejes en la carpeta **Intercambio** de tus Documentos de Windows aparece en **Intercambio**, en tu carpeta personal de Mint Docente, y al revés.
+- **Carpeta compartida a mano** (solo si no usaste el instalador; se configura una vez). Con la máquina apagada, en VirtualBox:
   1. *Configuración → Carpetas compartidas → +*
   2. Elige una carpeta de tu ordenador, ponle de nombre **Intercambio** y marca **Automontar**.
   3. Arranca la máquina: la carpeta aparece como **Intercambio** en tu carpeta personal.
