@@ -5,3 +5,4 @@ crash.log
 packer/http/preseed.cfg
 __pycache__/
 .superpowers/
+instalador/cmd/instalar/rsrc_*.syso
