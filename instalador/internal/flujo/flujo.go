@@ -42,25 +42,26 @@ const (
 
 // Mensajes que ve el docente.
 const (
-	msgSinVBox     = "Este equipo no tiene VirtualBox. Pídeselo al coordinador TIC."
-	msgAntiguo     = "Este VirtualBox es antiguo; pide al coordinador TIC la versión 7.x."
-	msgVBoxMudo    = "VirtualBox no responde. Reinicia el equipo y vuelve a abrir el instalador. Si sigue igual, pide ayuda al coordinador TIC."
-	msgAbierta     = "Mint Docente está abierta. Ciérrala y vuelve a abrir el instalador."
-	msgYaExiste    = "Ya tienes Mint Docente en este equipo. ¿Quieres abrirla o reinstalarla?\n\nSi la reinstalas, se borrará todo lo que tengas dentro y no hayas guardado fuera de ella."
-	msgConfirmar   = "¿Seguro que quieres reinstalar Mint Docente?\n\nSe borrará la máquina actual con todo lo que tenga dentro. No se puede deshacer."
-	msgNoBorra     = "No se ha podido borrar la Mint Docente anterior. Reinicia el equipo y vuelve a abrir el instalador."
-	msgSinConexion = "No se ha podido conectar con el sitio de descarga. Comprueba que hay conexión a internet y vuelve a abrir el instalador."
-	msgDescargaMal = "La descarga de Mint Docente no es válida. Vuelve a abrir el instalador más tarde."
-	msgCortada     = "La descarga se ha cortado. Comprueba la conexión a internet y vuelve a abrir el instalador: seguirá donde lo dejó."
-	msgDanada      = "La descarga ha llegado dañada varias veces. Vuelve a abrir el instalador más tarde o conéctate a otra red."
-	msgNoUne       = "No se ha podido preparar la descarga. Vuelve a abrir el instalador: lo descargado no se pierde."
-	msgPocaMemoria = "Este equipo tiene poca memoria: Mint Docente funcionará, pero irá lenta. Cierra los demás programas mientras la uses."
-	msgNoImporta   = "No se ha podido instalar Mint Docente en VirtualBox. Reinicia el equipo y vuelve a abrir el instalador: no tendrás que esperar otra vez a la descarga."
-	msgSinInterc   = "No se ha podido preparar la carpeta Intercambio. Para pasar archivos entre Windows y Mint Docente, arrástralos a la ventana de la máquina."
-	msgSinAcceso   = "No se ha podido crear el acceso directo «Mint Docente» en el escritorio. Para abrirla otra vez, abre VirtualBox y haz doble clic en «Mint Docente»."
-	msgNoArranca   = "Mint Docente está instalada, pero no ha podido arrancar. Ábrela con el acceso directo «Mint Docente» del escritorio."
-	msgDetenido    = "Has detenido la instalación. Cuando vuelvas a abrir el instalador, seguirá donde lo dejó."
-	msgAyuda       = "Si necesitas ayuda, envía el archivo instalador.log de la carpeta MintDocente."
+	msgSinVBox      = "Este equipo no tiene VirtualBox. Pídeselo al coordinador TIC."
+	msgAntiguo      = "Este VirtualBox es antiguo; pide al coordinador TIC la versión 7.x."
+	msgVBoxMudo     = "VirtualBox no responde. Reinicia el equipo y vuelve a abrir el instalador. Si sigue igual, pide ayuda al coordinador TIC."
+	msgAbierta      = "Mint Docente está abierta. Ciérrala y vuelve a abrir el instalador."
+	msgYaExiste     = "Ya tienes Mint Docente en este equipo. ¿Quieres abrirla o reinstalarla?\n\nSi la reinstalas, se borrará todo lo que tengas dentro y no hayas guardado fuera de ella."
+	msgConfirmar    = "¿Seguro que quieres reinstalar Mint Docente?\n\nCuando la nueva esté descargada, se borrará la máquina actual con todo lo que tenga dentro. No se puede deshacer."
+	msgEspacioVieja = "No hay espacio suficiente mientras siga en el equipo la Mint Docente anterior."
+	msgNoBorra      = "No se ha podido borrar la Mint Docente anterior. Reinicia el equipo y vuelve a abrir el instalador."
+	msgSinConexion  = "No se ha podido conectar con el sitio de descarga. Comprueba que hay conexión a internet y vuelve a abrir el instalador."
+	msgDescargaMal  = "La descarga de Mint Docente no es válida. Vuelve a abrir el instalador más tarde."
+	msgCortada      = "La descarga se ha cortado. Comprueba la conexión a internet y vuelve a abrir el instalador: seguirá donde lo dejó."
+	msgDanada       = "La descarga ha llegado dañada varias veces. Vuelve a abrir el instalador más tarde o conéctate a otra red."
+	msgNoUne        = "No se ha podido preparar la descarga. Vuelve a abrir el instalador: lo descargado no se pierde."
+	msgPocaMemoria  = "Este equipo tiene poca memoria: Mint Docente funcionará, pero irá lenta. Cierra los demás programas mientras la uses."
+	msgNoImporta    = "No se ha podido instalar Mint Docente en VirtualBox. Reinicia el equipo y vuelve a abrir el instalador: no tendrás que esperar otra vez a la descarga."
+	msgSinInterc    = "No se ha podido preparar la carpeta Intercambio. Para pasar archivos entre Windows y Mint Docente, arrástralos a la ventana de la máquina."
+	msgSinAcceso    = "No se ha podido crear el acceso directo «Mint Docente» en el escritorio. Para abrirla otra vez, abre VirtualBox y haz doble clic en «Mint Docente»."
+	msgNoArranca    = "Mint Docente está instalada, pero no ha podido arrancar. Ábrela con el acceso directo «Mint Docente» del escritorio."
+	msgDetenido     = "Has detenido la instalación. Cuando vuelvas a abrir el instalador, seguirá donde lo dejó."
+	msgAyuda        = "Si necesitas ayuda, envía el archivo instalador.log de la carpeta MintDocente."
 )
 
 // Barra es una ventana de progreso.
@@ -106,6 +107,9 @@ type ejecucion struct {
 	rutaVBox string
 	barra    Barra
 	ultimo   int // última fracción mostrada, en milésimas
+	// reinstalar: hay una máquina anterior que se borra justo antes de
+	// importar, cuando la OVA nueva ya está descargada y comprobada.
+	reinstalar bool
 }
 
 // Ejecutar hace la instalación completa. Cada fallo ya se ha explicado al
@@ -192,7 +196,8 @@ func (x *ejecucion) correr() error {
 		return nil
 	}
 	if existe {
-		if x.dep.UI.Pregunta(msgYaExiste, "Abrir", "Reinstalar") {
+		// Cerrar la ventana cuenta como «no»: aquí, abrir (lo que no borra nada).
+		if !x.dep.UI.Pregunta(msgYaExiste, "Reinstalar", "Abrir") {
 			x.log("el docente elige abrir la máquina existente")
 			return x.abrir()
 		}
@@ -200,10 +205,8 @@ func (x *ejecucion) correr() error {
 			x.log("el docente no confirma la reinstalación")
 			return nil
 		}
-		x.log("reinstalación confirmada: se borra la máquina existente")
-		if err := vbox.Borrar(x.e, Nombre); err != nil {
-			return x.fallo(msgNoBorra, err)
-		}
+		x.log("reinstalación confirmada: la máquina anterior se borrará antes de importar")
+		x.reinstalar = true
 	}
 	return x.instalar()
 }
@@ -217,6 +220,7 @@ func (x *ejecucion) abrir() error {
 }
 
 func (x *ejecucion) instalar() error {
+	x.mostrar("Preparando la descarga…", 0)
 	carpeta, err := vbox.CarpetaMaquinas(x.e)
 	if err != nil {
 		return x.fallo(msgVBoxMudo, err)
@@ -233,11 +237,15 @@ func (x *ejecucion) instalar() error {
 	tams, total := x.tamanos(lista)
 	x.limpiarTrabajo(lista)
 	if falta := x.falta(carpeta, total); falta > 0 {
-		return x.fallo(mensajeEspacio(carpeta, falta), fmt.Errorf("faltan %d bytes", falta))
+		m := mensajeEspacio(carpeta, falta)
+		if x.reinstalar {
+			m = msgEspacioVieja + " " + m
+		}
+		return x.fallo(m, fmt.Errorf("faltan %d bytes", falta))
 	}
 
 	ova := filepath.Join(x.dep.Trabajo, lista.Completa.Nombre)
-	if _, err := os.Stat(ova); err == nil {
+	if x.ovaLista(lista, ova) {
 		x.log("la OVA ya estaba unida y comprobada: %s", ova)
 	} else if err := x.descargarYUnir(lista, tams, total, ova); err != nil {
 		return err
@@ -245,6 +253,11 @@ func (x *ejecucion) instalar() error {
 
 	if x.ctx.Err() != nil {
 		return x.detenido()
+	}
+	if x.reinstalar {
+		if err := x.borrarAnterior(); err != nil {
+			return err
+		}
 	}
 	if err := x.importar(ova, carpeta); err != nil {
 		return err
@@ -259,6 +272,42 @@ func (x *ejecucion) instalar() error {
 		return x.fallo(msgNoArranca, err)
 	}
 	x.log("instalación terminada")
+	return nil
+}
+
+// ovaLista dice si la OVA unida de una ejecución anterior sirve. Solo se
+// renombra a ova tras comprobarla, y unir borra las partes después; si aún
+// queda alguna parte, la OVA no es de fiar y se borra.
+func (x *ejecucion) ovaLista(l sumas.Lista, ova string) bool {
+	if _, err := os.Stat(ova); err != nil {
+		return false
+	}
+	for _, p := range l.Partes {
+		if _, err := os.Stat(filepath.Join(x.dep.Trabajo, p.Nombre)); err == nil {
+			x.log("hay una OVA y también partes: se vuelve a unir")
+			os.Remove(ova)
+			return false
+		}
+	}
+	return true
+}
+
+// borrarAnterior borra la máquina que se reinstala, si sigue apagada.
+func (x *ejecucion) borrarAnterior() error {
+	existe, encendida, err := vbox.Estado(x.e, Nombre)
+	if err != nil {
+		return x.fallo(msgVBoxMudo, err)
+	}
+	if encendida {
+		return x.fallo(msgAbierta, errors.New("la máquina anterior está encendida"))
+	}
+	if !existe {
+		return nil
+	}
+	x.log("se borra la máquina anterior")
+	if err := vbox.Borrar(x.e, Nombre); err != nil {
+		return x.fallo(msgNoBorra, err)
+	}
 	return nil
 }
 
@@ -429,10 +478,16 @@ func (x *ejecucion) descargarYUnir(l sumas.Lista, tams []int64, total int64, ova
 			return err
 		}
 		x.mostrar("Comprobando la descarga…", 1)
-		err := unir.Partes(rutas, ova, l.Completa.SHA256)
-		switch {
-		case err == nil:
+		// Se une con otro nombre: si el proceso muere a mitad, no queda una
+		// OVA cortada que parezca buena (limpiarTrabajo borra el resto).
+		err := unir.Partes(rutas, ova+".uniendo", l.Completa.SHA256)
+		if err == nil {
+			if err := os.Rename(ova+".uniendo", ova); err != nil {
+				return x.fallo(msgNoUne, err)
+			}
 			return nil
+		}
+		switch {
 		case errors.Is(err, unir.ErrSuma) && vuelta == 1:
 			x.log("la OVA unida no cuadra; se descarga todo otra vez")
 		case errors.Is(err, unir.ErrSuma):

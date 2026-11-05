@@ -38,6 +38,9 @@ type vboxFalso struct {
 	fallaImport    bool
 	fallaCompartir bool
 	ordenes        [][]string
+	tamImportado   int64
+	// alBorrar se llama en cada unregistervm (para mirar el disco en ese momento).
+	alBorrar func()
 }
 
 func (v *vboxFalso) Ejecutar(args ...string) (string, error) {
@@ -61,6 +64,8 @@ func (v *vboxFalso) Ejecutar(args ...string) (string, error) {
 		if v.fallaImport {
 			return "", errors.New("VBOX_E_FILE_ERROR")
 		}
+		st, _ := os.Stat(args[1])
+		v.tamImportado = st.Size()
 		v.vms = `"Mint Docente" ` + uuid + "\n"
 		return "", nil
 	case "sharedfolder":
@@ -69,6 +74,9 @@ func (v *vboxFalso) Ejecutar(args ...string) (string, error) {
 		}
 		return "", nil
 	case "unregistervm":
+		if v.alBorrar != nil {
+			v.alBorrar()
+		}
 		v.vms = ""
 		return "", nil
 	case "startvm":
@@ -324,7 +332,7 @@ func TestMaquinaEncendida(t *testing.T) {
 	e := nuevo(t)
 	e.vb.vms = `"Mint Docente" ` + uuid + "\n"
 	e.vb.running = e.vb.vms
-	e.ui.respuestas = []bool{false, true} // aunque contestara «Reinstalar» y «sí»
+	e.ui.respuestas = []bool{true, true} // aunque contestara «Reinstalar» y «sí»
 	e.ejecutar(t)
 	want := "Mint Docente está abierta. Ciérrala y vuelve a abrir el instalador."
 	if !slices.Contains(e.ui.avisos, want) {
@@ -339,14 +347,14 @@ func TestMaquinaEncendida(t *testing.T) {
 func TestAbrirExistente(t *testing.T) {
 	e := nuevo(t)
 	e.vb.vms = `"Mint Docente" ` + uuid + "\n"
-	e.ui.respuestas = []bool{true} // «Abrir»
+	e.ui.respuestas = []bool{false} // «Abrir» (también al cerrar la ventana)
 	if err := e.ejecutar(t); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.vb.acciones(); !slices.Equal(got, []string{"startvm"}) {
 		t.Errorf("acciones = %v", got)
 	}
-	if len(e.ui.preguntas) != 1 || !strings.Contains(e.ui.preguntas[0], "[Abrir/Reinstalar]") {
+	if len(e.ui.preguntas) != 1 || !strings.Contains(e.ui.preguntas[0], "[Reinstalar/Abrir]") {
 		t.Errorf("pregunta = %q", e.ui.preguntas)
 	}
 	if len(e.o.peticiones) != 0 {
@@ -357,7 +365,7 @@ func TestAbrirExistente(t *testing.T) {
 func TestReinstalarPideDosVeces(t *testing.T) {
 	e := nuevo(t)
 	e.vb.vms = `"Mint Docente" ` + uuid + "\n"
-	e.ui.respuestas = []bool{false, false} // «Reinstalar» y después «no»
+	e.ui.respuestas = []bool{true, false} // «Reinstalar» y después «no»
 	e.ejecutar(t)
 	if len(e.ui.preguntas) != 2 {
 		t.Fatalf("preguntas = %q", e.ui.preguntas)
@@ -371,16 +379,90 @@ func TestReinstalarPideDosVeces(t *testing.T) {
 	}
 }
 
-func TestReinstalarConfirmado(t *testing.T) {
+func reinstalar(t *testing.T) *escenario {
 	e := nuevo(t)
 	e.vb.vms = `"Mint Docente" ` + uuid + "\n"
-	e.ui.respuestas = []bool{false, true}
+	e.ui.respuestas = []bool{true, true} // «Reinstalar» y «Sí, reinstalar»
+	return e
+}
+
+func TestReinstalarConfirmado(t *testing.T) {
+	e := reinstalar(t)
+	ovaAlBorrar := false
+	e.vb.alBorrar = func() {
+		_, err := os.Stat(filepath.Join(e.dep.Trabajo, ova))
+		ovaAlBorrar = err == nil
+	}
 	if err := e.ejecutar(t); err != nil {
 		t.Fatal(err, e.ui.errores)
 	}
 	want := []string{"unregistervm", "import", "sharedfolder", "startvm"}
 	if got := e.vb.acciones(); !slices.Equal(got, want) {
 		t.Errorf("acciones = %v, quería %v", got, want)
+	}
+	if !ovaAlBorrar {
+		t.Error("la máquina anterior se borró antes de tener la OVA descargada y comprobada")
+	}
+}
+
+func TestReinstalarDescargaFallaNoBorra(t *testing.T) {
+	e := reinstalar(t)
+	e.o.cortar = func(string, int) int { return -1 }
+	if err := e.ejecutar(t); err == nil {
+		t.Fatal("debía fallar")
+	}
+	e.unError(t)
+	noHay(t, e.vb, "unregistervm", "import")
+}
+
+func TestReinstalarSinEspacioNoBorra(t *testing.T) {
+	e := reinstalar(t)
+	e.libre = equipo.EspacioNecesario(e.o.tam()) - 5<<30
+	e.ejecutar(t)
+	m := e.unError(t)
+	if !strings.Contains(m, "Faltan 5 GB libres en el disco") || !strings.Contains(m, "anterior") {
+		t.Errorf("mensaje = %q", m)
+	}
+	noHay(t, e.vb, "unregistervm", "import")
+}
+
+func TestReinstalarLaAbreDuranteLaDescarga(t *testing.T) {
+	e := reinstalar(t)
+	original := bajar
+	t.Cleanup(func() { bajar = original })
+	bajar = func(ctx context.Context, c *http.Client, u, d, s string, p func(int64, int64)) error {
+		e.vb.running = e.vb.vms // el docente la abre desde el escritorio
+		return original(ctx, c, u, d, s, p)
+	}
+	if err := e.ejecutar(t); err == nil {
+		t.Fatal("debía parar")
+	}
+	if m := e.unError(t); !strings.HasPrefix(m, "Mint Docente está abierta. Ciérrala y vuelve a abrir el instalador.") {
+		t.Errorf("mensaje = %q", m)
+	}
+	noHay(t, e.vb, "unregistervm", "import")
+}
+
+func TestUnionInterrumpida(t *testing.T) {
+	for _, resto := range []string{ova, ova + ".uniendo"} {
+		t.Run(resto, func(t *testing.T) {
+			e := nuevo(t)
+			os.MkdirAll(e.dep.Trabajo, 0o755)
+			for _, n := range []string{parte + "1", parte + "2"} {
+				os.WriteFile(filepath.Join(e.dep.Trabajo, n), e.o.archivos[n], 0o644)
+			}
+			// El proceso murió a mitad de unir: queda un archivo cortado.
+			os.WriteFile(filepath.Join(e.dep.Trabajo, resto), e.o.archivos[parte+"1"][:1000], 0o644)
+			if err := e.ejecutar(t); err != nil {
+				t.Fatal(err, e.ui.errores)
+			}
+			if e.vb.tamImportado != e.o.tam() {
+				t.Errorf("se importó una OVA de %d bytes, quería %d", e.vb.tamImportado, e.o.tam())
+			}
+			if len(e.o.peticiones) != 1 {
+				t.Errorf("no debía volver a descargar las partes: %v", e.o.peticiones)
+			}
+		})
 	}
 }
 
