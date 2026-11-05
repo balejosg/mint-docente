@@ -5,7 +5,7 @@ E="$FILES/escritorio"
 
 log "Programas del escritorio"
 install -D -m644 "$E/mint-docente-ventana-codigo" /usr/local/lib/mint-docente/ventana-codigo
-for s in opencode-docente mint-docente-inicio mint-docente-asistente mint-docente-conectar mint-docente-github; do
+for s in opencode-docente mint-docente-inicio mint-docente-asistente mint-docente-conectar mint-docente-github mint-docente-desconectar; do
   install -m755 "$E/$s" "/usr/local/bin/$s"
 done
 
@@ -15,6 +15,7 @@ install -m644 "$E/cambiar-cuenta-ia.desktop"  /usr/share/applications/cambiar-cu
 install -m644 "$E/guia-docente.desktop"       /usr/share/applications/guia-docente.desktop
 # Solo en el menú: compartir es opcional, no lleva icono en el escritorio.
 install -m644 "$E/conectar-github.desktop"    /usr/share/applications/conectar-github.desktop
+install -m644 "$E/desconectar-cuentas.desktop" /usr/share/applications/desconectar-cuentas.desktop
 for f in ai.opencode.desktop.desktop opencode-desktop.desktop; do
   [ -e "/usr/share/applications/$f" ] || continue
   sed -e '/^NoDisplay=/d' -e '/^\[Desktop Entry\]/a NoDisplay=true' "/usr/share/applications/$f" \

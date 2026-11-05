@@ -1,0 +1,23 @@
+#!/bin/bash
+# Desconecta las cuentas de GitHub y de IA de este equipo (útil en equipos compartidos).
+# Se abre desde el menú («Desconectar mis cuentas»). Con --si se salta la pregunta (pruebas).
+# Sale con 0 al terminar y con 1 si el docente decide no desconectar.
+TITULO="Mint Docente — Desconectar mis cuentas"
+export GH_NO_UPDATE_NOTIFIER=1 GH_PROMPT_DISABLED=1
+
+if [ "${1:-}" != "--si" ]; then
+  zenity --question --title="$TITULO" --width=440 \
+    --ok-label="Desconectar" --cancel-label="Cancelar" \
+    --text="¿Desconecto tus cuentas de IA y de GitHub de este equipo?\n\nTendrás que volver a conectarlas la próxima vez." || exit 1
+fi
+
+# GitHub (solo si hay sesión)
+if gh auth status -h github.com >/dev/null 2>&1; then
+  gh auth logout -h github.com >/dev/null 2>&1
+fi
+# Cuenta de IA: credenciales de OpenCode (el mismo archivo que limpia 90-limpieza.sh)
+rm -f "$HOME/.local/share/opencode/auth.json"
+
+zenity --info --title="$TITULO" --width=420 --text=\
+"<b>✔ Tus cuentas están desconectadas.</b>\n\nCierra OpenCode y vuelve a abrirlo para que el cambio surta efecto."
+exit 0

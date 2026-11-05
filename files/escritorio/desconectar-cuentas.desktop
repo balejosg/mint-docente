@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Desconectar mis cuentas
+Comment=Cerrar la sesión de GitHub y de la IA en este equipo
+Exec=/usr/local/bin/mint-docente-desconectar
+Icon=system-log-out
+Terminal=false
+Categories=Office;Education;Settings;

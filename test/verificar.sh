@@ -52,6 +52,7 @@ prueba "Autoarranque configurado"       "test -r ~/.config/autostart/mint-docent
 prueba "GitHub CLI"                     "gh --version"
 prueba "Sin credenciales de GitHub"     "! gh auth status >/dev/null 2>&1 && test ! -e ~/.config/gh/hosts.yml"
 prueba "Lanzador Conectar GitHub"       "test -r /usr/share/applications/conectar-github.desktop"
+prueba "Lanzador Desconectar"          "test -r /usr/share/applications/desconectar-cuentas.desktop && test -x /usr/local/bin/mint-docente-desconectar"
 prueba "Sin icono de GitHub en el escritorio" "test ! -e \"\$(xdg-user-dir DESKTOP)/conectar-github.desktop\""
 prueba "Orden compartir sin sesión"     "{ compartir estado >/dev/null 2>&1; test \$? -eq 3; }"
 prueba "Pruebas de compartir"           "COMPARTIR_BIN=/usr/local/bin/compartir python3 /var/tmp/mint-docente/test/test_compartir.py"
