@@ -19,11 +19,31 @@ Después el instalador lo hace todo solo:
 
 Si ya la tienes instalada, te pregunta si quieres abrirla o reinstalarla. Si algo falla, el mensaje dice qué hacer; el registro está en `%LOCALAPPDATA%\MintDocente\instalador.log`.
 
-**macOS y Linux (método manual):** la OVA está en [Releases](https://github.com/balejosg/mint-docente/releases/latest), dividida en partes de menos de 2 GB (límite de GitHub). Descarga todas las partes y el `SHA256SUMS`. Únelas en orden (`part0`, `part1`, `part2`…) con el nombre que tiene la `.ova` en la última línea de `SHA256SUMS`, y comprueba el resultado:
+### Método manual (si el instalador no funciona)
+
+En macOS y Linux es el único método. La OVA está en [Releases](https://github.com/balejosg/mint-docente/releases/latest), dividida en partes de menos de 2 GB (límite de GitHub): `MintDocente-AAAAMMDD.ova.part0`, `.part1`, `.part2`… Descarga **todas** las partes y el `SHA256SUMS` en la misma carpeta. El nombre de la `.ova` es el de la última línea de `SHA256SUMS`; ponlo en la primera línea de lo que sigue.
+
+Las partes se unen **en orden numérico** (`part0`, `part1`, …, `part9`, `part10`…). No uses `part*`: después de `part9` ese patrón las desordena (`part10` iría antes que `part2`) y la OVA saldría dañada.
+
+**Windows** (PowerShell, en la carpeta de la descarga):
+
+```powershell
+$ova = "MintDocente-AAAAMMDD.ova"
+$n = (Get-ChildItem "$ova.part*").Count
+$salida = [IO.File]::Create("$PWD/$ova")
+for ($i = 0; $i -lt $n; $i++) { $e = [IO.File]::OpenRead("$PWD/$ova.part$i"); $e.CopyTo($salida); $e.Close() }
+$salida.Close()
+$esperado = ((Get-Content SHA256SUMS | Where-Object { $_ -match "[ *]$([regex]::Escape($ova))$" }) -split '\s+')[0]
+if ((Get-FileHash $ova -Algorithm SHA256).Hash -eq $esperado) { "OVA correcta" } else { "La OVA NO coincide: vuelve a descargar las partes" }
+```
+
+**macOS y Linux** (Terminal, en la carpeta de la descarga):
 
 ```bash
-cat MintDocente-AAAAMMDD.ova.part0 MintDocente-AAAAMMDD.ova.part1 MintDocente-AAAAMMDD.ova.part2 > MintDocente-AAAAMMDD.ova
-sha256sum -c --ignore-missing SHA256SUMS   # en macOS: shasum -a 256 MintDocente-AAAAMMDD.ova, y compáralo con SHA256SUMS
+ova=MintDocente-AAAAMMDD.ova
+n=$(ls "$ova".part* | wc -l)
+for i in $(seq 0 $((n - 1))); do cat "$ova.part$i"; done > "$ova"
+grep -E "[ *]$ova\$" SHA256SUMS | shasum -a 256 -c -   # debe decir «OK»
 ```
 
 Luego impórtala en VirtualBox (*Archivo → Importar servicio virtualizado*).
