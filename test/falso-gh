@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""gh falso para probar `compartir` sin red.
+
+Entorno:
+  FALSO_GH_USUARIO   usuario con sesión (p. ej. ana)
+  FALSO_GH_USUARIOS  usuarios que existen en el «GitHub» falso, separados por comas
+  FALSO_GH_DIR       carpeta de estado compartido (estado.json; si existe
+                     el archivo sin_sesion, no hay sesión)
+  FALSO_GH_LOG       registro: una línea JSON con los argumentos de cada llamada
+  COMPARTIR_GIT_BASE base de los repositorios bare (<base>/<usuario>/<repo>.git)
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+yo = os.environ["FALSO_GH_USUARIO"]
+dir_estado = Path(os.environ["FALSO_GH_DIR"])
+base = Path(os.environ["COMPARTIR_GIT_BASE"])
+existentes = os.environ.get("FALSO_GH_USUARIOS", "ana,luis").split(",")
+dir_estado.mkdir(parents=True, exist_ok=True)
+with open(os.environ["FALSO_GH_LOG"], "a") as f:
+    f.write(json.dumps({"usuario": yo, "args": args}) + "\n")
+
+ruta_estado = dir_estado / "estado.json"
+estado = json.loads(ruta_estado.read_text()) if ruta_estado.exists() else {
+    "repos": {}, "invitaciones": [], "siguiente_id": 1}
+
+
+def guardar_estado():
+    ruta_estado.write_text(json.dumps(estado))
+
+
+def salir(datos=None, codigo=0, error=""):
+    if datos is not None:
+        print(json.dumps(datos))
+    if error:
+        print(error, file=sys.stderr)
+    sys.exit(codigo)
+
+
+def no_encontrado():
+    salir(codigo=1, error="gh: Not Found (HTTP 404)")
+
+
+def usuario_json(login):
+    return {"login": login, "id": 1000 + existentes.index(login),
+            "name": login.capitalize()}
+
+
+if (dir_estado / "sin_sesion").exists():
+    salir(codigo=4, error="To get started with GitHub CLI, please run:  gh auth login")
+
+if args[:2] == ["auth", "status"]:
+    salir(codigo=0)
+
+if args[:2] == ["repo", "create"]:
+    nombre = args[2]
+    clave = f"{yo}/{nombre}"
+    destino = base / yo / f"{nombre}.git"
+    if clave in estado["repos"] or destino.exists():
+        salir(codigo=1, error="GraphQL: Name already exists on this account (createRepository)")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(destino)], check=True)
+    descripcion = args[args.index("--description") + 1] if "--description" in args else ""
+    estado["repos"][clave] = {"topics": [], "colaboradores": [], "descripcion": descripcion,
+                              "privado": "--private" in args}
+    guardar_estado()
+    salir(codigo=0, error="")
+
+if args[:2] == ["repo", "edit"]:
+    clave = args[2]
+    if clave not in estado["repos"]:
+        no_encontrado()
+    if "--add-topic" in args:
+        estado["repos"][clave]["topics"].append(args[args.index("--add-topic") + 1])
+    guardar_estado()
+    salir(codigo=0)
+
+if args[0] == "api":
+    metodo = "GET"
+    if "-X" in args:
+        metodo = args[args.index("-X") + 1]
+    ruta = [a for a in args[1:] if not a.startswith("-") and a != metodo][0]
+    partes = ruta.strip("/").split("/")
+
+    if partes == ["user"]:
+        salir(usuario_json(yo))
+
+    if len(partes) == 2 and partes[0] == "users":
+        if partes[1] not in existentes:
+            no_encontrado()
+        salir(usuario_json(partes[1]))
+
+    # Colaboradores e invitaciones (repos/{o}/{r}/...)
+    if partes[0] == "repos" and len(partes) >= 4:
+        clave = f"{partes[1]}/{partes[2]}"
+        repo = estado["repos"].get(clave)
+        if repo is None:
+            no_encontrado()
+        propietario = partes[1]
+        es_propietario = yo == propietario
+        tiene_acceso = es_propietario or yo in repo["colaboradores"]
+        if not tiene_acceso:
+            no_encontrado()
+
+        if partes[3] == "collaborators" and len(partes) == 4 and metodo == "GET":
+            salir([usuario_json(propietario)] + [usuario_json(c) for c in repo["colaboradores"]])
+
+        if partes[3] == "collaborators" and len(partes) == 5:
+            otro = partes[4]
+            if metodo == "PUT":
+                if not es_propietario:
+                    salir(codigo=1, error="gh: Must have admin rights to Repository. (HTTP 403)")
+                if otro not in existentes:
+                    salir(codigo=1, error="gh: Validation Failed (HTTP 422)")
+                inv = {"id": estado["siguiente_id"], "repo": clave, "invitado": otro,
+                       "de": yo}
+                estado["siguiente_id"] += 1
+                estado["invitaciones"].append(inv)
+                guardar_estado()
+                salir({"id": inv["id"]}, codigo=0)
+            if metodo == "DELETE":
+                if not es_propietario and otro != yo:
+                    salir(codigo=1, error="gh: Must have admin rights to Repository. (HTTP 403)")
+                if otro not in repo["colaboradores"]:
+                    no_encontrado()
+                repo["colaboradores"].remove(otro)
+                guardar_estado()
+                salir(codigo=0)
+
+        if partes[3] == "invitations":
+            if not es_propietario:
+                salir(codigo=1, error="gh: Must have admin rights to Repository. (HTTP 403)")
+            if len(partes) == 4 and metodo == "GET":
+                salir([{"id": i["id"], "invitee": usuario_json(i["invitado"])}
+                       for i in estado["invitaciones"] if i["repo"] == clave])
+            if len(partes) == 5 and metodo == "DELETE":
+                n = int(partes[4])
+                estado["invitaciones"] = [i for i in estado["invitaciones"] if i["id"] != n]
+                guardar_estado()
+                salir(codigo=0)
+
+    if partes[:2] == ["user", "repository_invitations"]:
+        mias = [i for i in estado["invitaciones"] if i["invitado"] == yo]
+        if len(partes) == 2 and metodo == "GET":
+            salir([{"id": i["id"], "inviter": {"login": i["de"]},
+                    "repository": {"full_name": i["repo"], "name": i["repo"].split("/")[1],
+                                   "owner": {"login": i["repo"].split("/")[0]},
+                                   "description": estado["repos"][i["repo"]]["descripcion"]}}
+                   for i in mias])
+        if len(partes) == 3 and metodo == "PATCH":
+            n = int(partes[2])
+            inv = next((i for i in mias if i["id"] == n), None)
+            if inv is None:
+                no_encontrado()
+            estado["repos"][inv["repo"]]["colaboradores"].append(yo)
+            estado["invitaciones"].remove(inv)
+            guardar_estado()
+            salir(codigo=0)
+
+salir(codigo=1, error=f"falso-gh: orden no simulada: {args}")

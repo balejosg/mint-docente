@@ -25,6 +25,9 @@ echo "$GH_DEB_SHA256  $tmp/gh.deb" | sha256sum -c -
 apt_get install "$tmp/gh.deb"
 rm -rf "$tmp"
 
+log "Orden compartir (espacios compartidos entre docentes)"
+install -D -m755 "$FILES/compartir/compartir" /usr/local/bin/compartir
+
 log "Configuración del sistema (/etc/opencode) — prioridad máxima, sin credenciales"
 install -D -m644 "$FILES/opencode/opencode.jsonc" /etc/opencode/opencode.jsonc
 
