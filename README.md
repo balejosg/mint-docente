@@ -160,8 +160,3 @@ docs/superpowers/          notas históricas del currículo propio, ya sustituid
 - **Asistente de Copilot:** `opencode auth login github-copilot --method device --answer deploymentType=github.com` imprime `Enter code: XXXX-XXXX` sin preguntar nada. El asistente lee ese código y lo muestra.
 - **`opencode run` sin terminal lee la entrada estándar:** para usarlo en scripts, añade `</dev/null`.
 - **Las Guest Additions se compilan una vez, en el build.** `80-recorte.sh` quita los compiladores y retiene el metapaquete del kernel: un kernel nuevo dejaría sin carpeta compartida, portapapeles ni ajuste de pantalla. Para actualizar el kernel, se reconstruye la OVA.
-
-## Pendiente
-
-- Probar el inicio de sesión real con una cuenta de **GitHub Copilot Pro para educadores**.
-- Elegir el modelo por defecto de Copilot: idealmente uno que no consuma peticiones *premium*. Se fijaría con `"model"` en `files/opencode/opencode.jsonc`.
