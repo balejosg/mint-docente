@@ -12,7 +12,7 @@ Genera una máquina virtual **llave en mano** para VirtualBox (`.ova`) con:
 El instalador no está firmado, así que Windows puede mostrar una ventana azul, «Windows protegió su PC». Pulsa **Más información** (debajo del texto) y después **Ejecutar de todos modos**.
 
 Después el instalador lo hace todo solo:
-1. Descarga Mint Docente (unos 3,5 GB) y comprueba que ha llegado entera. Si la descarga se corta, al volver a abrirlo sigue donde lo dejó.
+1. Descarga Mint Docente (unos 3 GB) y comprueba que ha llegado entera. Si la descarga se corta, al volver a abrirlo sigue donde lo dejó.
 2. La instala en VirtualBox con la memoria y los procesadores ajustados a tu equipo.
 3. Crea la carpeta **Intercambio** en tus Documentos, para pasar archivos entre Windows y Mint Docente.
 4. Deja en el escritorio un acceso directo **Mint Docente** y la arranca.

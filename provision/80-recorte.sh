@@ -12,11 +12,21 @@ instalados() {
   { dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "$@" 2>/dev/null || true; } | awk '$1 ~ /^.i/ {print $2}'
 }
 
+# Lo que apt purgaría con los paquetes dados, aparte de los de PERMITIDOS (uno por
+# línea; por defecto, los propios paquetes). Si apt no puede quitarlos (rompería
+# dependencias, p. ej. de un paquete retenido) la simulación falla sin ninguna
+# línea Purg: eso no es «nada más», así que se devuelve «apt-no-puede-quitarlo».
+purgaria_ademas() {
+  local sim
+  if ! sim=$(LANG=C apt-get -s purge "$@" 2>/dev/null); then echo apt-no-puede-quitarlo; return; fi
+  awk '/^Purg /{print $2}' <<<"$sim" | grep -vxF -f <(printf '%s\n' ${PERMITIDOS:-"$@"}) || true
+}
+
 # Purga los paquetes dados solo si apt no se lleva nada más con ellos.
 purgar_solo() {
   [ $# -gt 0 ] || return 0
   local fuera
-  fuera=$(LANG=C apt-get -s purge "$@" 2>/dev/null | awk '/^Purg /{print $2}' | grep -vxF -f <(printf '%s\n' "$@") || true)
+  fuera=$(purgaria_ademas "$@")
   if [ -n "$fuera" ]; then
     echo "Se quedan $* (se llevarían también: $(echo $fuera))"
   else
@@ -144,8 +154,7 @@ done
 # Lo que apt se lleve con cada uno tiene que ser también solo temas (nunca onboard).
 TEMAS=""
 for p in $SOLO_TEMAS; do
-  fuera=$(LANG=C apt-get -s purge "$p" 2>/dev/null | awk '/^Purg /{print $2}' \
-    | grep -vxF -f <(printf '%s\n' $SOLO_TEMAS) || true)
+  fuera=$(PERMITIDOS=$SOLO_TEMAS purgaria_ademas "$p")
   if [ -z "$fuera" ]; then TEMAS="$TEMAS $p"; else echo "Se queda $p (lo necesitan: $(echo $fuera))"; fi
 done
 [ -z "$TEMAS" ] || apt_get purge $TEMAS
